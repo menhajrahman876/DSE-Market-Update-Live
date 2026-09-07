@@ -1,0 +1,23 @@
+# --- data / secrets: never publish ---
+*.xlsb
+*.xlsx
+*.xlsm
+.streamlit/secrets.toml
+
+# --- generator's default output (we commit dashboard_snapshot.html instead) ---
+dse_live_dashboard.html
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# --- OS / editor / Google Drive junk ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+~$*

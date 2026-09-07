@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSE Day-End Market Update — Live Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
+<style>
+/* ============================================================
+   TOKENS  —  "Steel Contrast": a light theme pinned as the only mode.
+   Deeper slate-blue page ground so every white card/table visibly lifts;
+   teal-blue accent; teal gain / brick-red loss. Light is applied
+   regardless of the OS colour-scheme (no dark @media override), so the
+   dashboard looks identical for every viewer.
+
+   --up-hdr / --down-hdr are the *on-header* gain/loss colours: the index
+   chips sit on the dark header band, where the on-white --up/--down fail
+   AA, so the chip percentages use these brighter variants instead
+   (measured >=4.5:1 on --hdr-1).
+   ============================================================ */
+:root{
+  --bg:#e6ecf4; --bg-grad:#dbe3ee;
+  --surface:#ffffff; --surface-2:#dde6f1; --surface-3:#cfdaea;
+  --ink:#16202e; --ink-2:#33465c; --muted:#51637a;
+  --line:#cbd8e8; --line-soft:#e8eef6;
+  --up:#0f766e; --up-soft:rgba(15,118,110,.11); --up-flash:rgba(15,118,110,.26);
+  --down:#b91c1c; --down-soft:rgba(185,28,28,.10); --down-flash:rgba(185,28,28,.26);
+  --up-hdr:#4ade80; --down-hdr:#fb7185;
+  --flat:#64748b;
+  --accent:#0e7490; --accent-soft:rgba(14,116,144,.12);
+  --gold:#a16207; --gold-soft:#fdf3d7;
+  --hdr-1:#1c3040; --hdr-2:#2b4a5f;
+  --surface-rgb:255,255,255;
+  --shadow:0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.05);
+  --shadow-lg:0 4px 16px rgba(15,23,42,.12);
+  /* density 9/10 */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
+  --r-sm:5px; --r-md:8px; --r-lg:11px;
+  --mono:'Fira Code',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'Fira Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:var(--sans);font-size:13px;line-height:1.45;
+  background:linear-gradient(180deg,var(--bg-grad),var(--bg) 340px);
+  background-attachment:fixed;color:var(--ink);
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
+a{color:var(--accent);}
+.num,.kpi-value,.chip-val,table.data-table td,.stat-v{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.wrap{max-width:1560px;margin:0 auto;padding:0 var(--sp-4) 40px;}
+.pos{color:var(--up);} .neg{color:var(--down);}
+
+/* ============================================================ HEADER */
+header.top{background:linear-gradient(135deg,var(--hdr-1),var(--hdr-2));
+  border-bottom:1px solid rgba(255,255,255,.07);padding:14px 0 0;margin-bottom:var(--sp-3);}
+header.top .inner{max-width:1560px;margin:0 auto;padding:0 var(--sp-4);}
+.hdr-row{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-mark{width:34px;height:34px;border-radius:9px;flex:0 0 34px;
+  background:linear-gradient(140deg,var(--accent),#7c3aed);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:600;font-size:12px;color:#fff;letter-spacing:-.4px;
+  box-shadow:0 2px 12px rgba(56,189,248,.35);}
+header.top h1{margin:0;font-size:16px;font-weight:600;color:#fff;letter-spacing:-.15px;}
+header.top .sub{font-size:11px;color:#8fa0be;margin-top:1px;font-family:var(--mono);}
+.hdr-status{display:flex;align-items:center;gap:8px;padding:6px 11px;border-radius:999px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);max-width:640px;}
+.snapshot-note{font-size:10.5px;color:#c8d3e6;line-height:1.35;}
+.live-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;background:var(--gold);
+  box-shadow:0 0 0 0 rgba(245,158,11,.6);}
+.live-dot.live{background:var(--up-hdr);animation:pulse 2.1s ease-out infinite;}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(34,197,94,.55);}
+  70%{box-shadow:0 0 0 7px rgba(34,197,94,0);}
+  100%{box-shadow:0 0 0 0 rgba(34,197,94,0);}
+}
+/* ticker-tape index chips */
+.idx-chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(212px,1fr));
+  gap:var(--sp-2);margin:var(--sp-3) 0 0;padding-bottom:var(--sp-3);}
+.idx-chip{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);
+  border-radius:var(--r-md);padding:8px 11px;position:relative;overflow:hidden;
+  transition:border-color .2s,background .2s;}
+.idx-chip:hover{background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.16);}
+.idx-chip .chip-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px;}
+.idx-chip .lbl{font-size:9.5px;color:#8fa0be;text-transform:uppercase;letter-spacing:.7px;font-weight:600;}
+.idx-chip .chip-chg{font-size:11px;font-weight:600;font-family:var(--mono);}
+/* index chips sit on the dark header band -> use the on-header gain/loss
+   variants (AA-safe on --hdr-1), not the on-white --up/--down */
+.idx-chip .chip-chg.pos{color:var(--up-hdr);}
+.idx-chip .chip-chg.neg{color:var(--down-hdr);}
+.idx-chip .chip-body{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:2px;}
+.idx-chip .chip-val{font-size:19px;font-weight:600;color:#fff;letter-spacing:-.4px;line-height:1.15;}
+.idx-chip .chip-sub{font-size:10px;color:#8fa0be;font-family:var(--mono);margin-top:1px;}
+.chip-spark{opacity:.95;flex:0 0 auto;}
+
+/* ============================================================ TABS */
+nav.tabs{display:flex;gap:2px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:4px;box-shadow:var(--shadow);margin-bottom:var(--sp-3);
+  position:sticky;top:6px;z-index:30;}
+nav.tabs button{appearance:none;border:none;background:transparent;color:var(--muted);
+  font-family:var(--sans);font-size:11.5px;font-weight:600;padding:7px 11px;border-radius:var(--r-sm);
+  cursor:pointer;white-space:nowrap;transition:background .15s,color .15s;letter-spacing:.1px;}
+nav.tabs button:hover{background:var(--surface-2);color:var(--ink);}
+nav.tabs button.active{background:var(--accent);color:#fff;box-shadow:0 1px 6px var(--accent-soft);}
+nav.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.tabpanel{display:none;} .tabpanel.active{display:block;}
+
+/* ============================================================ LAYOUT */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3);}
+@media (max-width:1080px){.grid2,.grid3{grid-template-columns:1fr;}}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:var(--sp-3) var(--sp-4) var(--sp-4);box-shadow:var(--shadow);margin-bottom:var(--sp-3);}
+.card h3{margin:0 0 2px;font-size:12.5px;font-weight:600;letter-spacing:-.1px;
+  display:flex;align-items:center;gap:7px;}
+.card h3::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--accent);flex:0 0 3px;}
+.card .note{font-size:10.5px;color:var(--muted);margin:2px 0 10px 10px;line-height:1.45;}
+.card canvas{max-height:320px;}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:var(--sp-3);margin-bottom:var(--sp-3);}
+.kpi-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:11px var(--sp-3) 10px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+.kpi-label{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;
+  font-weight:600;margin-bottom:3px;}
+.kpi-main{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;}
+.kpi-value{font-size:21px;font-weight:600;letter-spacing:-.5px;line-height:1.15;}
+.kpi-sub{font-size:10.5px;margin-top:2px;color:var(--muted);font-family:var(--mono);}
+
+/* flash-on-change */
+@keyframes flashUp{0%{background-color:var(--up-flash);}100%{background-color:transparent;}}
+@keyframes flashDown{0%{background-color:var(--down-flash);}100%{background-color:transparent;}}
+.flash-up{animation:flashUp 1.7s ease-out;border-radius:4px;box-decoration-break:clone;}
+.flash-down{animation:flashDown 1.7s ease-out;border-radius:4px;box-decoration-break:clone;}
+@media (prefers-reduced-motion: reduce){
+  .flash-up,.flash-down{animation:none;}
+  .live-dot.live{animation:none;}
+  *{scroll-behavior:auto !important;}
+}
+
+/* banners / pills */
+.banner{border-radius:var(--r-md);padding:7px 11px;font-size:11.5px;font-weight:500;
+  margin-bottom:var(--sp-3);border:1px solid transparent;}
+.banner.warn{background:var(--down-soft);color:var(--down);border-color:var(--down);}
+.banner.ok{background:var(--up-soft);color:var(--up);border-color:var(--up-soft);}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9.5px;
+  font-weight:700;letter-spacing:.3px;text-transform:uppercase;}
+.pill.workbook{background:var(--up-soft);color:var(--up);}
+.pill.external{background:var(--gold-soft);color:var(--gold);}
+
+/* ============================================================ TABLES */
+.tbl-wrap{width:100%;}
+.tbl-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:7px;}
+.tbl-toolbar input[type=text],.tbl-toolbar select,.tbl-toolbar input[type=date]{
+  padding:5px 8px;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:var(--surface-2);color:var(--ink);font-size:11.5px;font-family:var(--sans);
+  transition:border-color .15s,box-shadow .15s;}
+.tbl-toolbar input[type=text]{min-width:190px;}
+.tbl-toolbar input:focus,.tbl-toolbar select:focus{outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);}
+.tbl-count{font-size:10px;color:var(--muted);margin-left:auto;font-family:var(--mono);}
+.tbl-scroll{overflow-x:auto;}
+.tbl-scroll.sticky{max-height:560px;overflow-y:auto;}
+table.data-table{width:100%;border-collapse:separate;border-spacing:0;font-size:11.8px;}
+table.data-table thead th{text-align:left;padding:6px 8px;background:var(--surface);
+  border-bottom:1px solid var(--line);color:var(--muted);font-weight:600;font-size:9.5px;
+  text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;cursor:pointer;
+  user-select:none;font-family:var(--sans);transition:color .15s;}
+.tbl-scroll.sticky thead th{position:sticky;top:0;z-index:2;box-shadow:inset 0 -1px 0 var(--line);}
+table.data-table thead th:hover{color:var(--ink);}
+table.data-table thead th.sorted-asc,table.data-table thead th.sorted-desc{color:var(--accent);}
+table.data-table thead th.sorted-asc::after{content:" ▲";font-size:7px;}
+table.data-table thead th.sorted-desc::after{content:" ▼";font-size:7px;}
+table.data-table tbody td{padding:4px 8px;border-bottom:1px solid var(--line-soft);white-space:nowrap;}
+table.data-table tbody tr{transition:background .12s;}
+table.data-table tbody tr.rt-up{background:linear-gradient(90deg,var(--up-soft),transparent 55%);}
+table.data-table tbody tr.rt-down{background:linear-gradient(90deg,var(--down-soft),transparent 55%);}
+table.data-table tbody tr:hover{background:var(--surface-2);}
+.clickable-row tbody tr{cursor:pointer;}
+table.data-table td.col-key{font-family:var(--sans);font-weight:600;color:var(--ink);}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;
+  padding:3px 5px 3px 10px;border-radius:999px;font-size:11px;font-weight:600;margin-bottom:8px;}
+.filter-chip button{background:rgba(255,255,255,.25);border:none;color:#fff;border-radius:50%;
+  width:16px;height:16px;font-size:11px;cursor:pointer;line-height:1;}
+.filter-chip button:hover{background:rgba(255,255,255,.4);}
+
+/* segmented lookback control */
+.tag-row{display:inline-flex;gap:2px;flex-wrap:wrap;margin-bottom:10px;
+  background:var(--surface-2);padding:3px;border-radius:var(--r-md);border:1px solid var(--line);}
+.tag-row button{padding:4px 11px;border-radius:var(--r-sm);border:none;background:transparent;
+  color:var(--muted);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--mono);
+  transition:background .15s,color .15s;}
+.tag-row button:hover{color:var(--ink);}
+.tag-row button.active{background:var(--surface);color:var(--accent);box-shadow:var(--shadow);}
+.tag-row button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+
+/* sparkline + perf strip */
+svg.spark{display:block;}
+.perf-strip{display:inline-flex;align-items:flex-end;gap:1.5px;height:14px;vertical-align:middle;}
+.perf-strip i{width:4px;border-radius:1px;display:block;min-height:1px;}
+
+/* ============================================================ HEATMAP */
+.heat-controls{display:flex;gap:var(--sp-3);flex-wrap:wrap;align-items:center;margin-bottom:10px;}
+.heat-controls label{font-size:10px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.6px;font-weight:600;margin-right:5px;}
+.heatmap{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;
+  grid-auto-rows:minmax(52px,auto);grid-auto-flow:row dense;}
+@media (max-width:900px){.heatmap{grid-template-columns:repeat(6,1fr);}}
+.heat-tile{border-radius:var(--r-sm);padding:6px 8px;cursor:pointer;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:space-between;
+  border:1px solid rgba(128,128,128,.16);transition:transform .12s,box-shadow .12s,filter .12s;}
+.heat-tile:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg);filter:brightness(1.06);}
+.heat-tile:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.heat-name{font-size:10px;font-weight:600;line-height:1.2;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.heat-val{font-family:var(--mono);font-weight:600;line-height:1.1;}
+.heat-meta{font-family:var(--mono);font-size:8.5px;opacity:.75;line-height:1.2;}
+.heat-legend{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:9.5px;
+  color:var(--muted);font-family:var(--mono);flex-wrap:wrap;}
+.heat-legend .swatch{width:26px;height:11px;border-radius:2px;border:1px solid rgba(128,128,128,.2);}
+
+.commentary{font-size:12.5px;line-height:1.65;color:var(--ink-2);}
+.reading{font-size:12px;line-height:1.7;background:var(--surface-2);border-radius:var(--r-md);
+  padding:11px 13px;border-left:3px solid var(--accent);color:var(--ink-2);}
+.empty-note{font-size:11.5px;color:var(--muted);font-style:italic;padding:9px 0;}
+footer.foot{text-align:center;font-size:10px;color:var(--muted);padding:18px 0 6px;font-family:var(--mono);}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="inner">
+  <div class="hdr-row">
+    <div class="brand">
+      <div class="brand-mark">DSE</div>
+      <div>
+        <h1>Live Market Tracker</h1>
+        <div class="sub" id="hdr-sub"></div>
+      </div>
+    </div>
+    <div class="hdr-status">
+      <span class="live-dot" id="hdr-live-dot" aria-hidden="true"></span>
+      <span class="snapshot-note" id="hdr-snapshot"></span>
+    </div>
+  </div>
+  <div class="idx-chips" id="hdr-chips"></div>
+</div></header>
+
+<div class="wrap">
+  <nav class="tabs" id="tabnav"></nav>
+
+  <div class="tabpanel" id="tab-overview" data-tab="overview"></div>
+  <div class="tabpanel" id="tab-trend" data-tab="trend"></div>
+  <div class="tabpanel" id="tab-summary" data-tab="summary"></div>
+  <div class="tabpanel" id="tab-movers" data-tab="movers"></div>
+  <div class="tabpanel" id="tab-sectors" data-tab="sectors"></div>
+  <div class="tabpanel" id="tab-technicals" data-tab="technicals"></div>
+  <div class="tabpanel" id="tab-extremes" data-tab="extremes"></div>
+  <div class="tabpanel" id="tab-leaderboards" data-tab="leaderboards"></div>
+  <div class="tabpanel" id="tab-blocks" data-tab="blocks"></div>
+  <div class="tabpanel" id="tab-macro" data-tab="macro"></div>
+  <div class="tabpanel" id="tab-global" data-tab="global"></div>
+  <div class="tabpanel" id="tab-calendar" data-tab="calendar"></div>
+
+  <footer class="foot" id="foot"></footer>
+</div>
+
+<script>
+const DATA = /*__DSE_DASHBOARD_DATA__*/;
+const NA = "Not Available";
+
+/* ---------------------------------------------------------------------
+   theme-aware palette -- read the CSS tokens so JS-drawn things
+   (Chart.js, sparklines, heatmap) match the active colour scheme
+--------------------------------------------------------------------- */
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+let TH = {};
+function readTheme(){
+  TH = {
+    ink: cssVar('--ink'), muted: cssVar('--muted'), line: cssVar('--line'),
+    surface: cssVar('--surface'), up: cssVar('--up'), down: cssVar('--down'),
+    accent: cssVar('--accent'), flat: cssVar('--flat'),
+    surfaceRGB: cssVar('--surface-rgb').split(',').map(Number),
+    dark: darkMQ.matches,
+  };
+}
+readTheme();
+const COLORS = () => [TH.accent, '#f59e0b', TH.up, TH.down, '#a78bfa', '#2dd4bf', '#f472b6', '#94a3b8'];
+
+const CHARTS = [];
+function applyChartDefaults(){
+  Chart.defaults.font.family = "'Fira Sans',-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
+  Chart.defaults.font.size = 10;
+  Chart.defaults.color = TH.muted;
+  Chart.defaults.borderColor = TH.line;
+  Chart.defaults.plugins.tooltip.backgroundColor = TH.dark ? 'rgba(8,13,24,.95)' : 'rgba(15,23,42,.95)';
+  Chart.defaults.plugins.tooltip.titleColor = '#fff';
+  Chart.defaults.plugins.tooltip.bodyColor = '#e8edf7';
+  Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,.14)';
+  Chart.defaults.plugins.tooltip.borderWidth = 1;
+  Chart.defaults.plugins.tooltip.padding = 9;
+  Chart.defaults.plugins.tooltip.cornerRadius = 6;
+  Chart.defaults.plugins.tooltip.titleFont = {size:10.5, weight:'600'};
+  Chart.defaults.plugins.tooltip.bodyFont = {size:10.5, family:"'Fira Code',monospace"};
+}
+applyChartDefaults();
+darkMQ.addEventListener('change', ()=>{
+  readTheme(); applyChartDefaults();
+  CHARTS.forEach(c=>{ try{ c.update('none'); }catch(e){} });
+  document.querySelectorAll('[data-heat]').forEach(paintHeatTile);
+});
+
+/* ---------------------------------------------------------------------
+   formatting helpers -- mirror dse_render.py's fnum/fint/fpct exactly
+--------------------------------------------------------------------- */
+function fnum(v, dp=2){ if(v===null||v===undefined||Number.isNaN(v)) return '-';
+  return Number(v).toLocaleString(undefined,{minimumFractionDigits:dp,maximumFractionDigits:dp}); }
+function fint(v){ if(v===null||v===undefined||Number.isNaN(v)) return '-';
+  return Math.round(Number(v)).toLocaleString(); }
+function fpct(v, dp=2, sign=true){ if(v===null||v===undefined||Number.isNaN(v)) return '-';
+  const s = sign ? (v>=0?'+':'') : '';
+  return s + Number(v).toFixed(dp) + '%'; }
+function fpctNM(v, dp=1, cap=500){ if(v===null||v===undefined) return '-';
+  if(Math.abs(v)>cap) return 'n/m'; return (v>=0?'+':'')+Number(v).toFixed(dp)+'%'; }
+function signCls(v){ if(v===null||v===undefined||Number.isNaN(v)) return ''; return v>0?'pos':(v<0?'neg':''); }
+function dstr(d){ if(!d) return '-'; const dt=new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function dshort(d){ if(!d) return '-'; const dt=new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}); }
+function fmt(v, kind){
+  switch(kind){
+    case 'num2': return fnum(v,2); case 'num1': return fnum(v,1); case 'num0': return fnum(v,0);
+    case 'int': return fint(v); case 'pct2': return fpct(v,2); case 'pct1': return fpct(v,1);
+    case 'pct2ns': return fpct(v,2,false); case 'pctnm': return fpctNM(v);
+    case 'date': return dstr(v); case 'dateshort': return dshort(v);
+    case 'x': return (v===null||v===undefined) ? '-' : Number(v).toFixed(1)+'x';
+    default: return (v===null||v===undefined||v==='') ? '-' : v;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   LIVE: flash + count-up on values that changed since the last refresh.
+   Previous values are kept in sessionStorage, so this works both for the
+   Streamlit auto-refresh (iframe reloads each cycle) and for a manual
+   re-run of the static file. All storage access is guarded -- a sandboxed
+   iframe that blocks storage just means "no flash", never a broken page.
+--------------------------------------------------------------------- */
+const LIVE_KEY = 'dse_live_prev_v1';
+let PREV = {};
+const NEXT = {};
+try { PREV = JSON.parse(sessionStorage.getItem(LIVE_KEY) || '{}') || {}; } catch(e) { PREV = {}; }
+function savePrev(){ try { sessionStorage.setItem(LIVE_KEY, JSON.stringify(NEXT)); } catch(e){} }
+
+function flash(node, dir){
+  if(REDUCED || !dir || !node) return;
+  node.classList.remove('flash-up','flash-down');
+  void node.offsetWidth;                       // restart the animation
+  node.classList.add(dir > 0 ? 'flash-up' : 'flash-down');
+  setTimeout(()=>node.classList.remove('flash-up','flash-down'), 1800);
+}
+function animateNumber(node, from, to, formatter, ms=560){
+  if(REDUCED || from === null || from === undefined || !isFinite(from) || from === to){
+    node.textContent = formatter(to); return;
+  }
+  const t0 = performance.now();
+  (function step(now){
+    const p = Math.min((now - t0)/ms, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    node.textContent = formatter(from + (to - from) * eased);
+    if(p < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
+/** Render `value` into `node`, flashing + counting up if it moved since last refresh. */
+function liveValue(node, key, value, formatter){
+  NEXT[key] = value;
+  const prev = (key in PREV) ? PREV[key] : null;
+  if(value === null || value === undefined || !isFinite(value)){ node.textContent = formatter(value); return; }
+  if(prev === null || prev === undefined || !isFinite(prev) || prev === value){
+    node.textContent = formatter(value);
+    return;
+  }
+  animateNumber(node, prev, value, formatter);
+  flash(node, value - prev);
+}
+
+/* ---------------------------------------------------------------------
+   sparklines (inline SVG, gradient-filled) + multi-period perf strips
+--------------------------------------------------------------------- */
+let sparkSeq = 0;
+function sparkline(values, opts={}){
+  const w = opts.w || 104, h = opts.h || 30;
+  const vals = (values || []).filter(v => v !== null && v !== undefined && isFinite(v));
+  if(vals.length < 2) return '';
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1;
+  const step = w / (vals.length - 1);
+  const pts = vals.map((v,i)=> [i*step, h - 1 - ((v-min)/span)*(h-3)]);
+  const line = pts.map((p,i)=> (i?'L':'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = line + ` L ${w} ${h} L 0 ${h} Z`;
+  const rising = vals[vals.length-1] >= vals[0];
+  const col = opts.color || (rising ? TH.up : TH.down);
+  const id = 'spk' + (sparkSeq++);
+  const last = pts[pts.length-1];
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" style="stop-color:${col};stop-opacity:.38"/>
+      <stop offset="100%" style="stop-color:${col};stop-opacity:0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#${id})"/>
+    <path d="${line}" fill="none" stroke="${col}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="1.7" fill="${col}"/>
+  </svg>`;
+}
+/** Honest inline trend for a scrip: the payload carries no per-ticker price
+    series, so instead of inventing one we draw the four real multi-period
+    returns the workbook does provide. */
+function perfStrip(periods){
+  const vals = periods.filter(p => p[1] !== null && p[1] !== undefined);
+  if(!vals.length) return '';
+  const maxAbs = Math.max(...vals.map(p => Math.abs(p[1])), 1);
+  const bars = periods.map(([lbl,v])=>{
+    if(v === null || v === undefined) return `<i style="height:1px;background:${TH.flat};opacity:.4"></i>`;
+    const hgt = Math.max(2, Math.round(Math.min(Math.abs(v)/maxAbs, 1) * 13));
+    return `<i style="height:${hgt}px;background:${v>=0?TH.up:TH.down}"></i>`;
+  }).join('');
+  const title = periods.map(([lbl,v]) => `${lbl} ${v===null||v===undefined?'-':fpct(v)}`).join('  ·  ');
+  return `<span class="perf-strip" title="${title}">${bars}</span>`;
+}
+
+/* ---------------------------------------------------------------------
+   generic sortable / searchable table
+--------------------------------------------------------------------- */
+function buildTable(container, cols, rows, opts={}){
+  opts = Object.assign({search:true, rowClick:null, limit:null, defaultSort:null,
+                        defaultDir:'desc', searchPlaceholder:'Search...',
+                        sticky:false, rowTintBy:null}, opts);
+  let searchVal = '';
+  let sortKey = opts.defaultSort;
+  let sortDir = opts.defaultDir;
+  let externalFilter = opts.externalFilter || null;
+
+  const root = document.createElement('div'); root.className='tbl-wrap';
+  const toolbar = document.createElement('div'); toolbar.className='tbl-toolbar';
+  if(opts.search){
+    const inp = document.createElement('input');
+    inp.type='text'; inp.placeholder=opts.searchPlaceholder;
+    inp.addEventListener('input', e=>{ searchVal=e.target.value.toLowerCase(); renderBody(); });
+    toolbar.appendChild(inp);
+  }
+  if(opts.extraControls) opts.extraControls.forEach(el=>toolbar.appendChild(el));
+  const count = document.createElement('span'); count.className='tbl-count';
+  toolbar.appendChild(count);
+  root.appendChild(toolbar);
+
+  const scroll = document.createElement('div');
+  scroll.className = 'tbl-scroll' + (opts.sticky ? ' sticky' : '');
+  const table = document.createElement('table'); table.className='data-table';
+  if(opts.rowClick) table.classList.add('clickable-row');
+  const thead=document.createElement('thead'); const trh=document.createElement('tr');
+  cols.forEach(c=>{
+    const th=document.createElement('th'); th.textContent=c.label; th.style.textAlign=c.align||'left';
+    th.addEventListener('click',()=>{
+      if(sortKey===c.key) sortDir = sortDir==='asc'?'desc':'asc';
+      else { sortKey=c.key; sortDir = c.textSort ? 'asc':'desc'; }
+      renderBody();
+    });
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody=document.createElement('tbody'); table.appendChild(tbody);
+  scroll.appendChild(table); root.appendChild(scroll);
+  container.innerHTML=''; container.appendChild(root);
+
+  function renderBody(){
+    let data = rows;
+    if(externalFilter) data = data.filter(externalFilter);
+    if(searchVal){
+      const fields = opts.searchFields || cols.map(c=>c.key);
+      data = data.filter(r => fields.some(k => String(r[k] ?? '').toLowerCase().includes(searchVal)));
+    }
+    if(sortKey){
+      data = data.slice().sort((a,b)=>{
+        let av=a[sortKey], bv=b[sortKey];
+        const aMiss = av===null||av===undefined, bMiss = bv===null||bv===undefined;
+        if(aMiss && bMiss) return 0;
+        if(aMiss) return 1; if(bMiss) return -1;
+        let c;
+        if(typeof av==='string') c = av.localeCompare(bv); else c = av<bv?-1:(av>bv?1:0);
+        return sortDir==='asc' ? c : -c;
+      });
+    }
+    count.textContent = `${data.length.toLocaleString()} of ${rows.length.toLocaleString()}`;
+    Array.from(trh.children).forEach((th,i)=>{
+      th.classList.remove('sorted-asc','sorted-desc');
+      if(cols[i].key===sortKey) th.classList.add(sortDir==='asc'?'sorted-asc':'sorted-desc');
+    });
+    tbody.innerHTML='';
+    const shown = opts.limit ? data.slice(0,opts.limit) : data;
+    if(!shown.length){
+      const tr=document.createElement('tr'); const td=document.createElement('td');
+      td.colSpan=cols.length; td.className='empty-note'; td.textContent='No rows match.';
+      tr.appendChild(td); tbody.appendChild(tr);
+    }
+    shown.forEach(r=>{
+      const tr=document.createElement('tr');
+      if(opts.rowTintBy){
+        const tv = r[opts.rowTintBy];
+        if(tv !== null && tv !== undefined && isFinite(tv) && tv !== 0)
+          tr.classList.add(tv > 0 ? 'rt-up' : 'rt-down');
+      }
+      if(opts.rowClick) tr.addEventListener('click',()=>opts.rowClick(r));
+      cols.forEach((c,ci)=>{
+        const td=document.createElement('td'); td.style.textAlign=c.align||'left';
+        const raw = r[c.key];
+        const text = typeof c.format === 'function' ? c.format(raw, r)
+          : (c.format ? fmt(raw, c.format) : (raw ?? '-'));
+        if(c.html) td.innerHTML = text; else td.textContent = text;
+        if(ci === 0 && !c.html) td.classList.add('col-key');
+        const colorField = c.colorBy || (c.color ? c.key : null);
+        if(colorField){ const cls=signCls(r[colorField]); if(cls) td.classList.add(cls); }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+  renderBody();
+  return { refresh:renderBody, setFilter(fn){ externalFilter=fn; renderBody(); } };
+}
+
+function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function card(title, note){ const c=el('div','card'); c.appendChild(el('h3',null,title));
+  if(note) c.appendChild(el('div','note',note)); return c; }
+
+/* ---------------------------------------------------------------------
+   header
+--------------------------------------------------------------------- */
+function renderHeader(){
+  document.getElementById('hdr-sub').textContent =
+    `As of ${dstr(DATA.meta.as_of)}  ·  Workbook refreshed ${DATA.meta.wb_stamp||'n/a'}  ·  ` +
+    `${DATA.meta.n_tickers} tickers  ·  ${DATA.meta.n_sessions} sessions ` +
+    `(${dstr(DATA.meta.hist_span_from)} → ${dstr(DATA.meta.hist_span_to)})`;
+  document.getElementById('hdr-snapshot').textContent =
+    `Static snapshot, generated ${DATA.meta.generated_at.replace('T',' ')}. This page does not auto-refresh — ` +
+    `re-run dse_live_dashboard.py (same cadence as the PPTX) to update it.`;
+
+  // The Streamlit wrapper rewrites #hdr-snapshot to say it is live; watch for
+  // that and switch the status dot from "static" (amber) to a pulsing green.
+  const dot = document.getElementById('hdr-live-dot');
+  const snap = document.getElementById('hdr-snapshot');
+  // "live" has to be the status, not just any stray match -- the static
+  // message names dse_live_dashboard.py, so require a live claim AND the
+  // absence of the static wording before the dot starts pulsing green.
+  const syncDot = ()=>{
+    const txt = (snap.textContent || '').trim();
+    const claimsLive = /\blive\b|auto-refresh(?:es|ing)?\b|reloads every/i.test(txt);
+    const claimsStatic = /static snapshot|does not auto-refresh/i.test(txt);
+    dot.classList.toggle('live', claimsLive && !claimsStatic);
+  };
+  syncDot();
+  new MutationObserver(syncDot).observe(snap, {childList:true, characterData:true, subtree:true});
+
+  const chips = document.getElementById('hdr-chips');
+  const k = DATA.kpi, t = DATA.trend;
+  const SPARK_N = 60;
+  const tail = arr => (arr||[]).slice(-SPARK_N);
+  const defs = [
+    ['DSEX', 'dsex', k.dsex.level, k.dsex.chg, k.dsex.pct, tail(t.dsex), 'pts'],
+    ['DSES', 'dses', k.dses.level, k.dses.chg, k.dses.pct, tail(t.dses), 'pts'],
+    ['DS30', 'ds30', k.ds30.level, k.ds30.chg, k.ds30.pct, tail(t.ds30), 'pts'],
+    ['Turnover · BDT mn', 'turnover', k.turnover.value, null, k.turnover.chg_pct, tail(t.turnover), null],
+  ];
+  defs.forEach(([label,key,val,chg,pctv,series,unit])=>{
+    const c = el('div','idx-chip');
+    const top = el('div','chip-top');
+    top.appendChild(el('span','lbl',label));
+    top.appendChild(el('span','chip-chg '+signCls(pctv), fpct(pctv)));
+    c.appendChild(top);
+    const body = el('div','chip-body');
+    const valNode = el('span','chip-val');
+    liveValue(valNode, 'chip_'+key, val, v => unit ? fnum(v,2) : fnum(v,0));
+    body.appendChild(valNode);
+    const spark = sparkline(series, {w:88, h:26,
+      color: (pctv!==null && pctv!==undefined) ? (pctv>=0?TH.up:TH.down) : TH.accent});
+    if(spark){ const s = el('span','chip-spark'); s.innerHTML = spark; body.appendChild(s); }
+    c.appendChild(body);
+    c.appendChild(el('div','chip-sub', chg!==null ? `${fnum(chg,2)} ${unit}` : `${fnum(k.turnover.value,0)} mn traded`));
+    chips.appendChild(c);
+  });
+
+  document.getElementById('foot').textContent =
+    `Reused analytics from dse_data.py / dse_analytics.py — same numbers as ` +
+    `"DSE Market Update ${DATA.meta.as_of}.pptx". Source workbook: ${DATA.meta.workbook_file}.`;
+}
+
+/* ---------------------------------------------------------------------
+   tabs
+--------------------------------------------------------------------- */
+const TABS = [
+  ['overview','Overview'], ['trend','Trend'], ['summary','Summary & Breadth'],
+  ['movers','Top Movers'], ['sectors','Sectors'], ['technicals','Technicals'],
+  ['extremes','Extremes'], ['leaderboards','Leaderboards'], ['blocks','Blocks'],
+  ['macro','Treasury & Macro'], ['global','Global Markets'], ['calendar','Calendar'],
+];
+const initialized = {};
+const initializers = {};
+let state = { sectorFilter: null };
+
+function activateTab(name){
+  document.querySelectorAll('.tabpanel').forEach(p=>p.classList.toggle('active', p.dataset.tab===name));
+  document.querySelectorAll('#tabnav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  if(!initialized[name]){ initializers[name](); initialized[name]=true; }
+}
+
+function renderTabNav(){
+  const nav = document.getElementById('tabnav');
+  TABS.forEach(([key,label])=>{
+    const b = el('button',null,label); b.dataset.tab=key;
+    b.addEventListener('click',()=>activateTab(key));
+    nav.appendChild(b);
+  });
+}
+
+function goToMoversForSector(sector){
+  state.sectorFilter = sector;
+  activateTab('movers');
+  if(window._refreshUniverse) window._refreshUniverse();
+  document.getElementById('universe-panel').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+/* ---------------------------------------------------------------------
+   chart helpers -- gradient area fills, TradingView style
+--------------------------------------------------------------------- */
+function areaGradient(ctx, color, strength=0.34){
+  const g = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height || 280);
+  g.addColorStop(0, hexA(color, strength));
+  g.addColorStop(1, hexA(color, 0));
+  return g;
+}
+function hexA(c, a){
+  if(c.startsWith('#')){
+    const n = c.length === 4
+      ? [parseInt(c[1]+c[1],16), parseInt(c[2]+c[2],16), parseInt(c[3]+c[3],16)]
+      : [parseInt(c.slice(1,3),16), parseInt(c.slice(3,5),16), parseInt(c.slice(5,7),16)];
+    return `rgba(${n[0]},${n[1]},${n[2]},${a})`;
+  }
+  if(c.startsWith('rgb')) return c.replace(/rgba?\(([^)]+)\)/, (m,inner)=>{
+    const p = inner.split(',').slice(0,3).map(s=>s.trim());
+    return `rgba(${p.join(',')},${a})`;
+  });
+  return c;
+}
+function lineChart(canvas, labels, datasets, opts={}){
+  const pal = COLORS();
+  const ch = new Chart(canvas.getContext('2d'), {
+    type:'line',
+    data:{ labels, datasets: datasets.map((d,i)=>{
+      const col = d.color || pal[i % pal.length];
+      return {
+        label:d.label, data:d.data, borderColor:col, borderWidth:d.width||1.8,
+        backgroundColor: d.fill ? areaGradient(canvas.getContext('2d'), col) : hexA(col,.12),
+        borderDash:d.dash||[], pointRadius:0, pointHoverRadius:3.5,
+        pointHoverBackgroundColor:col, pointHoverBorderColor:'#fff', pointHoverBorderWidth:1.5,
+        tension:d.tension??0.22, yAxisID:d.yAxisID||'y', fill:d.fill||false, order:d.order||0,
+      };
+    })},
+    options: Object.assign({
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{position:'top',align:'end',
+          labels:{usePointStyle:true,pointStyle:'line',boxWidth:14,boxHeight:2,padding:12,font:{size:10}}} },
+      scales:{ x:{grid:{display:false},border:{color:TH.line},
+                  ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:9.5}}},
+               y:{grid:{color:hexA(TH.line,.55),drawTicks:false},border:{display:false},
+                  ticks:{font:{size:9.5},padding:6}} },
+    }, opts)
+  });
+  CHARTS.push(ch);
+  return ch;
+}
+function barChart(canvas, labels, data, opts={}){
+  const horizontal = opts.horizontal !== false;
+  const colors = opts.colorFn ? data.map(opts.colorFn) : (opts.color || TH.accent);
+  const ch = new Chart(canvas.getContext('2d'), {
+    type:'bar',
+    data:{ labels, datasets:[{ label:opts.label||'', data, backgroundColor:colors,
+      borderRadius:3, borderSkipped:false, barPercentage:.82, categoryPercentage:.86 }] },
+    options:{ responsive:true, maintainAspectRatio:false, animation:false, indexAxis:horizontal?'y':'x',
+      plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:(c)=> opts.tooltipFmt ? opts.tooltipFmt(c.parsed[horizontal?'x':'y']) : c.formattedValue }} },
+      scales:{ x:{grid:{display:horizontal,color:hexA(TH.line,.55),drawTicks:false},border:{display:false},ticks:{font:{size:9.5}}},
+               y:{grid:{display:!horizontal,color:hexA(TH.line,.55),drawTicks:false},border:{display:false},ticks:{font:{size:9.5}}} } }
+  });
+  CHARTS.push(ch);
+  return ch;
+}
+
+/* ---------------------------------------------------------------------
+   OVERVIEW tab
+--------------------------------------------------------------------- */
+initializers.overview = function(){
+  const root = document.getElementById('tab-overview');
+  const k = DATA.kpi, b = DATA.breadth;
+  // DATA.recent is newest-first -- reverse for chronological sparklines
+  const rec = (DATA.recent||[]).slice().reverse();
+  const kpiRow = el('div','kpi-row');
+  const pe = k.pe;
+  [
+    ['Market Cap · BDT bn','mcap', k.mcap.value/1000, v=>fnum(v,0), fpct(k.mcap.chg_pct)+' DoD',
+      signCls(k.mcap.chg_pct), rec.map(r=>r.mcap)],
+    ['Trades','trades', k.trades.value, v=>fint(v), fpct(k.trades.chg_pct)+' DoD',
+      signCls(k.trades.chg_pct), rec.map(r=>r.trade)],
+    ['Volume · mn shares','volume', k.volume.value/1e6, v=>fnum(v,1), fpct(k.volume.chg_pct)+' DoD',
+      signCls(k.volume.chg_pct), rec.map(r=>r.volume)],
+    ['Market P/E','pe', pe, v=>(v===null||v===undefined)?'-':fnum(v,2)+'x', 'Historical Data',
+      '', (DATA.trend.pe||[]).slice(-60)],
+  ].forEach(([lbl,key,val,formatter,sub,cls,series])=>{
+    const c=el('div','kpi-card');
+    c.appendChild(el('div','kpi-label',lbl));
+    const main = el('div','kpi-main');
+    const v = el('div','kpi-value');
+    liveValue(v, 'kpi_'+key, val, formatter);
+    main.appendChild(v);
+    const spark = sparkline(series, {w:74, h:24});
+    if(spark){ const s=el('span','chip-spark'); s.innerHTML=spark; main.appendChild(s); }
+    c.appendChild(main);
+    c.appendChild(el('div','kpi-sub '+cls,sub));
+    kpiRow.appendChild(c);
+  });
+  root.appendChild(kpiRow);
+
+  const cCommentary = card('Market Commentary','Synthesised from A.commentary() — the same text used on the PPTX cover slide.');
+  cCommentary.appendChild(el('div','commentary', DATA.commentary));
+  root.appendChild(cCommentary);
+
+  const g2 = el('div','grid2');
+  const cBreadth = card('Market Breadth', `${fint(b.adv)} advanced · ${fint(b.dec)} declined · ${fint(b.unch)} unchanged of ${fint(b.traded)} traded`);
+  const canvasB = document.createElement('canvas'); canvasB.style.maxHeight='168px'; cBreadth.appendChild(canvasB);
+  g2.appendChild(cBreadth);
+  const cExt = card('New Price Extremes Hit Today');
+  const es = DATA.extremes_summary;
+  const extRows = [
+    {window:'52-week', hi:es.hi52, lo:es.lo52},
+    {window:'5-year', hi:es.ext5.covered?es.ext5.hi:null, lo:es.ext5.covered?es.ext5.lo:null, na:!es.ext5.covered},
+    {window:'10-year', hi:es.ext10.covered?es.ext10.hi:null, lo:es.ext10.covered?es.ext10.lo:null, na:!es.ext10.covered},
+  ];
+  const extTbl = document.createElement('div'); cExt.appendChild(extTbl);
+  buildTable(extTbl, [
+    {key:'window',label:'Window'}, {key:'hi',label:'New Highs',align:'right',format:'int'},
+    {key:'lo',label:'New Lows',align:'right',format:'int'},
+  ], extRows.map(r=>({...r, hi:r.na?null:r.hi, lo:r.na?null:r.lo})), {search:false});
+  cExt.appendChild(el('div','note',
+    `52-week from ALL DATA's 52-week High/Low fields. 5- and 10-year need price history back to ` +
+    `${parseInt(DATA.meta.as_of.slice(0,4),10)-10}; Historical Data starts ${dstr(es.hist_span_from)}, so uncovered ` +
+    `windows show ${NA} rather than being approximated.`));
+  g2.appendChild(cExt);
+  root.appendChild(g2);
+
+  CHARTS.push(new Chart(canvasB.getContext('2d'), { type:'doughnut',
+    data:{ labels:['Advanced','Declined','Unchanged'], datasets:[{data:[b.adv,b.dec,b.unch],
+      backgroundColor:[TH.up,TH.down,TH.flat], borderColor:TH.surface, borderWidth:2, hoverOffset:5}] },
+    options:{ responsive:true, maintainAspectRatio:false, animation:false, cutout:'68%',
+      plugins:{legend:{position:'right',labels:{usePointStyle:true,pointStyle:'circle',padding:11,font:{size:10.5}}}} } }));
+
+  const g2b = el('div','grid2');
+  const movCols = [{key:'ticker',label:'Ticker'},{key:'pts',label:'Index pts',align:'right',format:'num2',color:true},
+    {key:'day_pct',label:'Day %',align:'right',format:'pct2',color:true}];
+  const cMov = card('Top Index Movers','Index Mover (Today), ALL DATA — points contributed');
+  const tMov = document.createElement('div'); cMov.appendChild(tMov);
+  buildTable(tMov, movCols, DATA.index_movers, {search:false, rowTintBy:'pts'});
+  g2b.appendChild(cMov);
+  const cDrag = card('Top Index Draggers','Index Mover (Today), ALL DATA — points contributed');
+  const tDrag = document.createElement('div'); cDrag.appendChild(tDrag);
+  buildTable(tDrag, movCols, DATA.index_draggers, {search:false, rowTintBy:'pts'});
+  g2b.appendChild(cDrag);
+  root.appendChild(g2b);
+
+  const cIdx = card('Index performance across periods',
+    "Computed from each index's own Historical Data series; week/month/year use the last session on or before the calendar lookback.");
+  const tIdx = document.createElement('div'); cIdx.appendChild(tIdx);
+  buildTable(tIdx, [
+    {key:'index',label:'Index'},{key:'level',label:'Close',align:'right',format:'num2'},
+    {key:'trend',label:'Trend',align:'left',html:true,format:(_,r)=>{
+      const map = {DSEX:DATA.trend.dsex, DSES:DATA.trend.dses, DS30:DATA.trend.ds30};
+      return sparkline((map[r.index]||[]).slice(-40), {w:70,h:20});
+    }},
+    {key:'day',label:'Day',align:'right',format:'pct2',color:true},{key:'week',label:'WoW',align:'right',format:'pct2',color:true},
+    {key:'month',label:'MoM',align:'right',format:'pct2',color:true},{key:'ytd',label:'YTD',align:'right',format:'pct2',color:true},
+    {key:'year',label:'1Y',align:'right',format:'pct2',color:true},
+    {key:'high',label:'Period high',align:'right',format:'num2'},{key:'low',label:'Period low',align:'right',format:'num2'},
+  ], DATA.index_returns, {search:false});
+  cIdx.appendChild(el('div','note', `Period high/low span the stored history (${dstr(DATA.meta.hist_span_from)} onward), not a 52-week window.`));
+  root.appendChild(cIdx);
+};
+
+/* ---------------------------------------------------------------------
+   TREND tab
+--------------------------------------------------------------------- */
+initializers.trend = function(){
+  const root = document.getElementById('tab-trend');
+  const t = DATA.trend;
+  const LOOKBACKS = [['20','20D'],['60','60D'],['120','120D'],['252','1Y'],['0','Max']];
+  let lookback = 60;
+
+  const cCombo = card('Turnover vs DSEX', 'Historical Data — pick a lookback window');
+  const tagsA = el('div','tag-row');
+  LOOKBACKS.forEach(([n,label])=>{
+    const btn = el('button',null,label); if(+n===lookback) btn.classList.add('active');
+    btn.addEventListener('click',()=>{ lookback=+n;
+      tagsA.querySelectorAll('button').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+      redraw(); });
+    tagsA.appendChild(btn);
+  });
+  cCombo.appendChild(tagsA);
+  const cvCombo = document.createElement('canvas'); cCombo.appendChild(cvCombo);
+  root.appendChild(cCombo);
+
+  const cRebased = card('DSEX / DSES / DS30 — rebased to 100', 'Same lookback as above');
+  const cvRebased = document.createElement('canvas'); cRebased.appendChild(cvRebased);
+  root.appendChild(cRebased);
+
+  let chartCombo=null, chartRebased=null;
+  function slice(arr,n){ return n>0 ? arr.slice(-n) : arr; }
+  function redraw(){
+    const dates = slice(t.dates, lookback).map(dshort);
+    const dsex = slice(t.dsex, lookback);
+    const turnover = slice(t.turnover, lookback);
+    const dses = slice(t.dses, lookback);
+    const ds30 = slice(t.ds30, lookback);
+    if(chartCombo) chartCombo.destroy();
+    const ctxC = cvCombo.getContext('2d');
+    chartCombo = new Chart(ctxC, {
+      data:{ labels:dates, datasets:[
+        {type:'bar', label:'Turnover (BDT mn)', data:turnover, backgroundColor:hexA(TH.accent,.30),
+          hoverBackgroundColor:hexA(TH.accent,.55), yAxisID:'y1', borderRadius:2, borderSkipped:false, order:2},
+        {type:'line', label:'DSEX', data:dsex, borderColor:TH.up,
+          backgroundColor:areaGradient(ctxC, TH.up, .28), fill:true,
+          borderWidth:2, pointRadius:0, pointHoverRadius:3.5, tension:.22, yAxisID:'y2', order:1},
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, animation:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{position:'top',align:'end',labels:{usePointStyle:true,boxWidth:9,padding:12,font:{size:10}}}},
+        scales:{ x:{grid:{display:false},border:{color:TH.line},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:9.5}}},
+          y1:{position:'left',grid:{color:hexA(TH.line,.5),drawTicks:false},border:{display:false},
+              title:{display:true,text:'BDT mn',font:{size:9.5}},ticks:{font:{size:9.5}}},
+          y2:{position:'right',grid:{display:false},border:{display:false},
+              title:{display:true,text:'DSEX',font:{size:9.5}},ticks:{font:{size:9.5}}} } }
+    });
+    CHARTS.push(chartCombo);
+    const base_dsex=dsex.find(v=>v!=null), base_dses=dses.find(v=>v!=null), base_ds30=ds30.find(v=>v!=null);
+    const reb = (arr,base)=>arr.map(v=> v==null||!base ? null : v/base*100);
+    if(chartRebased) chartRebased.destroy();
+    chartRebased = lineChart(cvRebased, dates, [
+      {label:'DSEX', data:reb(dsex,base_dsex), color:TH.accent, fill:true},
+      {label:'DSES', data:reb(dses,base_dses), color:'#f59e0b'},
+      {label:'DS30', data:reb(ds30,base_ds30), color:'#a78bfa'},
+    ]);
+  }
+  redraw();
+
+  const cRecent = card('Recent Market Information', 'DSE sheet, newest first');
+  const tRecent = document.createElement('div'); cRecent.appendChild(tRecent);
+  const recRows = DATA.recent.map((r,i,arr)=>({...r, volmn:r.volume/1e6, mcapbn:r.mcap/1000,
+    dsex_chg: (i+1 < arr.length && arr[i+1].dsex) ? (r.dsex/arr[i+1].dsex-1)*100 : null}));
+  buildTable(tRecent, [
+    {key:'date',label:'Date',format:'date'}, {key:'trade',label:'Trades',align:'right',format:'int'},
+    {key:'volmn',label:'Vol (mn)',align:'right',format:'num1'},
+    {key:'value',label:'Turnover (mn)',align:'right',format:'num0'},
+    {key:'mcapbn',label:'Mcap (bn)',align:'right',format:'num0'},
+    {key:'dsex',label:'DSEX',align:'right',format:'num2'},
+    {key:'dsex_chg',label:'DSEX %',align:'right',format:'pct2',color:true},
+    {key:'dses',label:'DSES',align:'right',format:'num2'}, {key:'ds30',label:'DS30',align:'right',format:'num2'},
+  ], recRows,
+  {search:true, searchPlaceholder:'Search date...', defaultSort:'date', defaultDir:'desc', rowTintBy:'dsex_chg'});
+  root.appendChild(cRecent);
+};
+
+/* ---------------------------------------------------------------------
+   SUMMARY & BREADTH tab
+--------------------------------------------------------------------- */
+initializers.summary = function(){
+  const root = document.getElementById('tab-summary');
+  const s = DATA.summary;
+
+  const cCat = card('Category-wise breadth', 'DSE / Market Summary; Trades/Value/Volume summed from ALL DATA by category (equities & funds only, so will not tie exactly to the all-market row).');
+  const tCat = document.createElement('div'); cCat.appendChild(tCat);
+  const catRows = s.category_rows.map(r=>({...r,
+    tradeD: r.has_breakdown ? r.trade : null, valueD: r.has_breakdown ? r.value : null, volD: r.has_breakdown ? r.volume : null}));
+  catRows.push({category:'ALL', adv:s.category_all.adv, dec:s.category_all.dec, unch:s.category_all.unch,
+    total:s.category_all.traded, tradeD:s.category_all.trade, valueD:s.category_all.value, volD:s.category_all.volume});
+  buildTable(tCat, [
+    {key:'category',label:'Category'}, {key:'adv',label:'Adv',align:'right',format:'int'},
+    {key:'dec',label:'Dec',align:'right',format:'int'}, {key:'unch',label:'Unch',align:'right',format:'int'},
+    {key:'total',label:'Traded',align:'right',format:'int'}, {key:'tradeD',label:'Trades*',align:'right',format:'int'},
+    {key:'valueD',label:'Value (mn)*',align:'right',format:'num1'}, {key:'volD',label:'Volume (mn)',align:'right',format:(v)=>fnum(v/1e6,2)},
+  ], catRows, {search:false});
+  root.appendChild(cCat);
+
+  const g2 = el('div','grid2');
+  const cCap = card('Market-cap segment breakdown', 'Aggregated from ALL DATA — Mcap Segment');
+  const tCap = document.createElement('div'); cCap.appendChild(tCap);
+  buildTable(tCap, [
+    {key:'segment',label:'Segment'}, {key:'n',label:'Scrips',align:'right',format:'int'},
+    {key:'adv',label:'Adv',align:'right',format:'int'}, {key:'dec',label:'Dec',align:'right',format:'int'},
+    {key:'trade',label:'Trades',align:'right',format:'int'}, {key:'value',label:'Value (mn)',align:'right',format:'num1'},
+    {key:'pct_value',label:'% Value',align:'right',format:'pct2ns'}, {key:'mcapbn',label:'Mcap (bn)',align:'right',format:'num1'},
+    {key:'wow_pct',label:'Mcap WoW',align:'right',format:'pct2',color:true},
+  ], s.cap_segments.map(r=>({...r,mcapbn:r.mcap/1e9})), {search:false, rowTintBy:'wow_pct'});
+  g2.appendChild(cCap);
+  const cPaid = card('Paid-up capital segment breakdown', 'Aggregated from ALL DATA — Paid-up Segment');
+  const tPaid = document.createElement('div'); cPaid.appendChild(tPaid);
+  buildTable(tPaid, [
+    {key:'segment',label:'Segment'}, {key:'n',label:'Scrips',align:'right',format:'int'},
+    {key:'adv',label:'Adv',align:'right',format:'int'}, {key:'dec',label:'Dec',align:'right',format:'int'},
+    {key:'trade',label:'Trades',align:'right',format:'int'}, {key:'value',label:'Value (mn)',align:'right',format:'num1'},
+    {key:'mcapbn',label:'Mcap (bn)',align:'right',format:'num1'}, {key:'wow_pct',label:'Mcap WoW',align:'right',format:'pct2',color:true},
+  ], s.paidup_segments.map(r=>({...r,mcapbn:r.mcap/1e9})), {search:false, rowTintBy:'wow_pct'});
+  g2.appendChild(cPaid);
+  root.appendChild(g2);
+
+  const g2b = el('div','grid2');
+  const cTot = card('Market totals & capitalisation split', 'DSE / Market Summary, as published');
+  const tTot = document.createElement('div'); cTot.appendChild(tTot);
+  const bnLabels = new Set(['Equity Mcap','MF Mcap','Debt Mcap','Total']);
+  buildTable(tTot, [{key:'label',label:'Particulars'},{key:'display',label:'Value',align:'right'}],
+    s.totals.map(r=>({label:r.label, display: bnLabels.has(r.label) ? fnum(r.value/1e9,1)+' bn' :
+      (r.label==='Value (Tk.)' ? fnum(r.value/1e6,1)+' mn' : fint(r.value))})), {search:false});
+  g2b.appendChild(cTot);
+  const cChart = card('Turnover by cap segment (BDT mn)');
+  const cv = document.createElement('canvas'); cChart.appendChild(cv);
+  g2b.appendChild(cChart);
+  root.appendChild(g2b);
+  barChart(cv, s.cap_segments.map(c=>c.segment), s.cap_segments.map(c=>c.value),
+    {color:hexA(TH.accent,.75), tooltipFmt:v=>fnum(v,0)+' mn'});
+};
+
+/* ---------------------------------------------------------------------
+   MOVERS tab
+--------------------------------------------------------------------- */
+initializers.movers = function(){
+  const root = document.getElementById('tab-movers');
+  const m = DATA.movers;
+  const moverCols = [
+    {key:'ticker',label:'Ticker'},
+    {key:'trend',label:'D/W/M/Y',align:'left',html:true,
+      format:(_,r)=>perfStrip([['Day',r.day],['1W',r.week],['1M',r.month],['52W',r.year]])},
+    {key:'close',label:'Close',align:'right',format:'num2'},
+    {key:'ycp',label:'YCP',align:'right',format:'num2'},{key:'day',label:'Day %',align:'right',format:'pct2',color:true},
+    {key:'week',label:'1W %',align:'right',format:'pct2',color:true},{key:'month',label:'1M %',align:'right',format:'pct2',color:true},
+    {key:'year',label:'52W %',align:'right',format:'pct2',color:true},
+  ];
+  const g2 = el('div','grid2');
+  const cG = card('Top 10 gainers'); const tG=document.createElement('div'); cG.appendChild(tG);
+  buildTable(tG, moverCols, m.gainers, {search:false, rowTintBy:'day'}); g2.appendChild(cG);
+  const cL = card('Top 10 losers'); const tL=document.createElement('div'); cL.appendChild(tL);
+  buildTable(tL, moverCols, m.losers, {search:false, rowTintBy:'day'}); g2.appendChild(cL);
+  root.appendChild(g2);
+
+  const g2b = el('div','grid2');
+  const top12Cols = [{key:'idx',label:'#',align:'right'},{key:'ticker',label:'Ticker'},
+    {key:'valuebn',label:'Value (bn)',align:'right',format:'num1'},{key:'day',label:'Day %',align:'right',format:'pct2',color:true}];
+  const cFF = card('Top 12 by free-float mcap', 'ALL DATA — FF Mcap');
+  const tFF=document.createElement('div'); cFF.appendChild(tFF);
+  buildTable(tFF, top12Cols, m.ff_mcap_top12.map((r,i)=>({...r, idx:i+1, valuebn:r.value/1e9})), {search:false, rowTintBy:'day'});
+  g2b.appendChild(cFF);
+  const cMC = card('Top 12 by market cap', "ALL DATA — Today's MCap");
+  const tMC=document.createElement('div'); cMC.appendChild(tMC);
+  buildTable(tMC, top12Cols, m.mcap_top12.map((r,i)=>({...r, idx:i+1, valuebn:r.value/1e9})), {search:false, rowTintBy:'day'});
+  g2b.appendChild(cMC);
+  root.appendChild(g2b);
+
+  const cUniv = card('Full ticker universe', 'ALL DATA — every traded/listed scrip. Click a sector tile or row on the Sectors tab to drill down here. The D/W/M/Y strip shows the four real multi-period returns the workbook carries — no intraday series is implied.');
+  cUniv.id = 'universe-panel';
+  const chipHolder = el('div'); cUniv.appendChild(chipHolder);
+  const controls = [];
+  const sectorSel = document.createElement('select');
+  sectorSel.appendChild(el('option',null,'All sectors')).value='';
+  [...new Set(m.universe.map(r=>r.sector))].filter(Boolean).sort().forEach(s=>{
+    const o=el('option',null,s); o.value=s; sectorSel.appendChild(o);
+  });
+  const capSel = document.createElement('select');
+  capSel.appendChild(el('option',null,'All cap segments')).value='';
+  [...new Set(m.universe.map(r=>r.cap_segment))].filter(Boolean).forEach(s=>{
+    const o=el('option',null,s); o.value=s; capSel.appendChild(o);
+  });
+  controls.push(sectorSel, capSel);
+  const tUniv = document.createElement('div'); cUniv.appendChild(tUniv);
+  const handle = buildTable(tUniv, [
+    {key:'ticker',label:'Ticker'},
+    {key:'trend',label:'D/W/M/Y',align:'left',html:true,
+      format:(_,r)=>perfStrip([['Day',r.day_pct],['1W',r.week_pct],['1M',r.month_pct],['52W',r.year_pct]])},
+    {key:'sector',label:'Sector'}, {key:'category',label:'Cat'},
+    {key:'cap_segment',label:'Cap'}, {key:'close',label:'Close',align:'right',format:'num2'},
+    {key:'day_pct',label:'Day %',align:'right',format:'pct2',color:true},
+    {key:'week_pct',label:'1W %',align:'right',format:'pct2',color:true},
+    {key:'month_pct',label:'1M %',align:'right',format:'pct2',color:true},
+    {key:'year_pct',label:'52W %',align:'right',format:'pct2',color:true},
+    {key:'value_mn',label:'Value (mn)',align:'right',format:'num2'},
+    {key:'trade',label:'Trades',align:'right',format:'int'},
+    {key:'mcap_bn',label:'Mcap (bn)',align:'right',format:'num2'},
+    {key:'pe',label:'P/E',align:'right',format:'x'},
+  ], m.universe, {searchPlaceholder:'Search ticker or company...', searchFields:['ticker','company','sector'],
+    defaultSort:'value_mn', defaultDir:'desc', extraControls: controls, sticky:true, rowTintBy:'day_pct'});
+
+  function applyUniverseFilter(){
+    const sec = sectorSel.value, cap = capSel.value;
+    handle.setFilter(r => (!sec || r.sector===sec) && (!cap || r.cap_segment===cap));
+    chipHolder.innerHTML='';
+    if(state.sectorFilter){
+      const chip = el('div','filter-chip', `Sector: ${state.sectorFilter} <button title="Clear sector filter">&times;</button>`);
+      chip.querySelector('button').addEventListener('click', ()=>{ state.sectorFilter=null; sectorSel.value=''; applyUniverseFilter(); });
+      chipHolder.appendChild(chip);
+    }
+  }
+  sectorSel.addEventListener('change', ()=>{ state.sectorFilter = sectorSel.value || null; applyUniverseFilter(); });
+  capSel.addEventListener('change', applyUniverseFilter);
+  window._refreshUniverse = ()=>{ sectorSel.value = state.sectorFilter || ''; applyUniverseFilter(); };
+  if(state.sectorFilter) sectorSel.value = state.sectorFilter;
+  applyUniverseFilter();
+  root.appendChild(cUniv);
+};
+
+/* ---------------------------------------------------------------------
+   SECTORS tab  — market heatmap + table
+--------------------------------------------------------------------- */
+function blendRGB(fg, alpha, bg){ return fg.map((c,i)=> Math.round(c*alpha + bg[i]*(1-alpha))); }
+function relLum([r,g,b]){
+  const f = c => { c/=255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); };
+  return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b);
+}
+/** Pick whichever ink actually contrasts better against the blended tile --
+    measured, not guessed, so the small print on a tile always clears AA. */
+const INK_DARK = '#06101d', INK_LIGHT = '#f7fbff';
+function bestInk(rgb){
+  const L = relLum(rgb);
+  const cd = (L + 0.05) / (relLum([6,16,29]) + 0.05);
+  const cl = (relLum([247,251,255]) + 0.05) / (L + 0.05);
+  return cd >= cl ? INK_DARK : INK_LIGHT;
+}
+/** Paint one tile: tint intensity by |return|, then pick black/white text by
+    the measured luminance of the blend so the % stays legible in both themes. */
+function paintHeatTile(tile){
+  const v = tile.dataset.val === '' ? null : Number(tile.dataset.val);
+  const maxAbs = Number(tile.dataset.max) || 1;
+  const bg = TH.surfaceRGB;
+  let rgb;
+  if(v === null || !isFinite(v)){
+    rgb = blendRGB([128,138,155], .18, bg);
+  } else {
+    const t = Math.min(Math.abs(v)/maxAbs, 1);
+    const alpha = 0.14 + Math.pow(t, .75) * 0.72;
+    const base = v >= 0 ? [34,197,94] : [239,68,68];
+    rgb = blendRGB(base, alpha, bg);
+  }
+  tile.style.background = `rgb(${rgb.join(',')})`;
+  tile.style.color = bestInk(rgb);
+}
+initializers.sectors = function(){
+  const root = document.getElementById('tab-sectors');
+  const secs = DATA.sectors;
+
+  /* ---- heatmap ---- */
+  const cHeat = card('Sector heatmap',
+    'Tile size = share of the metric you pick; colour = the return you pick. Every tile prints its own number, so the reading never depends on colour alone. Click a tile to drill into that sector.');
+  const ctrls = el('div','heat-controls');
+  const sizeSel = document.createElement('select');
+  [['turnover_share','Turnover share'],['weight','Market weight']].forEach(([v,l])=>{
+    const o=el('option',null,l); o.value=v; sizeSel.appendChild(o); });
+  const colSel = document.createElement('select');
+  [['day','Day return'],['week','WoW'],['month','MoM'],['ytd','YTD']].forEach(([v,l])=>{
+    const o=el('option',null,l); o.value=v; colSel.appendChild(o); });
+  const wrapL = el('div'); wrapL.appendChild(el('label',null,'Size by')); wrapL.appendChild(sizeSel);
+  const wrapR = el('div'); wrapR.appendChild(el('label',null,'Colour by')); wrapR.appendChild(colSel);
+  wrapL.style.display = wrapR.style.display = 'flex';
+  wrapL.style.alignItems = wrapR.style.alignItems = 'center';
+  ctrls.appendChild(wrapL); ctrls.appendChild(wrapR);
+  cHeat.appendChild(ctrls);
+  const heat = el('div','heatmap'); cHeat.appendChild(heat);
+  const legend = el('div','heat-legend'); cHeat.appendChild(legend);
+  root.appendChild(cHeat);
+
+  function spanFor(share){
+    if(share >= 11) return [6,2];
+    if(share >= 6.5) return [4,2];
+    if(share >= 3.5) return [4,1];
+    if(share >= 1.8) return [3,1];
+    if(share >= 0.8) return [2,1];
+    return [2,1];
+  }
+  function drawHeat(){
+    const sizeKey = sizeSel.value, colKey = colSel.value;
+    heat.innerHTML = '';
+    const items = secs.slice().sort((a,b)=> (b[sizeKey]||0) - (a[sizeKey]||0));
+    const maxAbs = Math.max(...items.map(s => Math.abs(s[colKey] ?? 0)), 0.01);
+    items.forEach(s=>{
+      const [cols,rowsSpan] = spanFor(s[sizeKey] || 0);
+      const tile = el('div','heat-tile');
+      tile.dataset.heat = '1';
+      tile.dataset.val = (s[colKey] === null || s[colKey] === undefined) ? '' : s[colKey];
+      tile.dataset.max = maxAbs;
+      tile.style.gridColumn = `span ${cols}`;
+      tile.style.gridRow = `span ${rowsSpan}`;
+      tile.tabIndex = 0;
+      tile.setAttribute('role','button');
+      tile.setAttribute('aria-label',
+        `${s.sector}. ${colSel.selectedOptions[0].text} ${fpct(s[colKey])}. ${sizeSel.selectedOptions[0].text} ${fpct(s[sizeKey],2,false)}.`);
+      tile.title = `${s.sector}\n${colSel.selectedOptions[0].text}: ${fpct(s[colKey])}\n` +
+        `Turnover: ${fnum(s.turnover,1)} mn (${fpct(s.turnover_share,2,false)})\n` +
+        `Mcap: ${fnum(s.mcap/1e9,1)} bn (${fpct(s.weight,2,false)})\nCompanies: ${fint(s.n)}`;
+      const nameSize = cols >= 4 ? 11.5 : 10;
+      const valSize = cols >= 6 ? 20 : (cols >= 4 ? 16 : 12);
+      tile.innerHTML =
+        `<div class="heat-name" style="font-size:${nameSize}px">${s.sector}</div>` +
+        `<div><div class="heat-val" style="font-size:${valSize}px">${fpct(s[colKey])}</div>` +
+        (rowsSpan > 1 || cols >= 3
+          ? `<div class="heat-meta">${fpct(s[sizeKey],2,false)} ${sizeKey==='weight'?'wt':'turn'}</div>` : '') +
+        `</div>`;
+      tile.addEventListener('click', ()=>goToMoversForSector(s.sector));
+      tile.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); goToMoversForSector(s.sector); } });
+      paintHeatTile(tile);
+      heat.appendChild(tile);
+    });
+    // numeric legend -- required so the scale is readable without colour
+    legend.innerHTML = '';
+    legend.appendChild(el('span',null,`${colSel.selectedOptions[0].text}:`));
+    [-1,-0.5,0,0.5,1].forEach(f=>{
+      const v = f*maxAbs;
+      const sw = el('span','swatch');
+      const bgc = TH.surfaceRGB;
+      const t = Math.min(Math.abs(v)/maxAbs,1);
+      const alpha = 0.14 + Math.pow(t,.75)*0.72;
+      const base = v>=0 ? [34,197,94] : [239,68,68];
+      sw.style.background = `rgb(${blendRGB(base,alpha,bgc).join(',')})`;
+      legend.appendChild(sw);
+      legend.appendChild(el('span',null,fpct(v,1)));
+    });
+    legend.appendChild(el('span',null,'· tile size = ' + sizeSel.selectedOptions[0].text.toLowerCase()));
+  }
+  sizeSel.addEventListener('change', drawHeat);
+  colSel.addEventListener('change', drawHeat);
+  drawHeat();
+
+  /* ---- table ---- */
+  const cTbl = card('Sector table — ranked by turnover', 'Click a row to filter the Top Movers universe table to that sector.');
+  if(DATA.sector_label_audit_n>0){
+    cTbl.appendChild(el('div','banner warn',
+      `Data note: Sector Report's own YTD/1-Year Return columns are transposed relative to the Mcap columns ` +
+      `(${DATA.sector_label_audit_n} mismatches) — this dashboard recomputes both from the date-stamped Mcap columns.`));
+  }
+  const tSec = document.createElement('div'); cTbl.appendChild(tSec);
+  buildTable(tSec, [
+    {key:'sector',label:'Sector'},
+    {key:'trend',label:'D/W/M/Y',align:'left',html:true,
+      format:(_,r)=>perfStrip([['Day',r.day],['WoW',r.week],['MoM',r.month],['YTD',r.ytd]])},
+    {key:'n',label:'Cos',align:'right',format:'int'},
+    {key:'turnover',label:'Turnover',align:'right',format:'num1'}, {key:'turnover_share',label:'% Turn',align:'right',format:'pct2ns'},
+    {key:'mcapbn',label:'Mcap (bn)',align:'right',format:'num1'}, {key:'weight',label:'Weight',align:'right',format:'pct2ns'},
+    {key:'day',label:'Day',align:'right',format:'pct2',color:true}, {key:'week',label:'WoW',align:'right',format:'pct2',color:true},
+    {key:'month',label:'MoM',align:'right',format:'pct2',color:true}, {key:'ytd',label:'YTD',align:'right',format:'pct2',color:true},
+    {key:'pe',label:'P/E',align:'right',format:'x'},
+  ], secs.map(s=>({...s,mcapbn:s.mcap/1e9})),
+     {defaultSort:'turnover', rowClick:(r)=>goToMoversForSector(r.sector), rowTintBy:'day'});
+  root.appendChild(cTbl);
+
+  const g2 = el('div','grid2');
+  const cShare = card('Turnover share by sector');
+  const cv1 = document.createElement('canvas'); cShare.appendChild(cv1);
+  g2.appendChild(cShare);
+  const cDay = card('Day return by sector');
+  const cv2 = document.createElement('canvas'); cDay.appendChild(cv2);
+  g2.appendChild(cDay);
+  root.appendChild(g2);
+  const byShare = [...secs].sort((a,b)=>b.turnover-a.turnover);
+  barChart(cv1, byShare.map(s=>s.sector), byShare.map(s=>s.turnover),
+    {color:hexA(TH.accent,.75), tooltipFmt:v=>fnum(v,0)+' mn'});
+  const byDay = [...secs].filter(s=>s.day!==null).sort((a,b)=>b.day-a.day);
+  barChart(cv2, byDay.map(s=>s.sector), byDay.map(s=>s.day),
+    {colorFn:v=>v>=0?hexA(TH.up,.85):hexA(TH.down,.85), tooltipFmt:v=>fpct(v)});
+
+  const cRot = card('Turnover-weight change', "Today's turnover share vs the sector's average share over the previous 5 sessions (Historical Data / Sector Value). Positive = money rotating in.");
+  const tRot = document.createElement('div'); cRot.appendChild(tRot);
+  buildTable(tRot, [
+    {key:'sector',label:'Sector'}, {key:'share',label:'Today',align:'right',format:'pct2ns'},
+    {key:'avg_share',label:'5-day avg',align:'right',format:'pct2ns'},
+    {key:'change_pp',label:'Change (pp)',align:'right',color:true,format:(v)=>fpct(v)+'pp'},
+  ], DATA.turnover_weight_change, {defaultSort:'change_pp', rowTintBy:'change_pp'});
+  root.appendChild(cRot);
+};
+
+/* ---------------------------------------------------------------------
+   TECHNICALS tab
+--------------------------------------------------------------------- */
+initializers.technicals = function(){
+  const root = document.getElementById('tab-technicals');
+  const t = DATA.technicals;
+  const LOOKBACKS = [['90','90D'],['180','180D'],['365','1Y'],['0','Max']];
+  let lookback = 180;
+
+  const cChart = card(`DSEX with MA(3)/MA(9)/MA(21) and support/resistance`,
+    `Computed from Historical Data's DSEX series (${t.params.sample_days} sessions, ${dstr(t.params.from)} to ${dstr(t.params.to)}).`);
+  const tags = el('div','tag-row');
+  LOOKBACKS.forEach(([n,label])=>{
+    const btn = el('button',null,label); if(+n===lookback) btn.classList.add('active');
+    btn.addEventListener('click',()=>{ lookback=+n; tags.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active'); redraw(); });
+    tags.appendChild(btn);
+  });
+  cChart.appendChild(tags);
+  const cv = document.createElement('canvas'); cv.style.maxHeight='380px'; cChart.appendChild(cv);
+  root.appendChild(cChart);
+
+  const cMacd = card('MACD (12, 26, 9)');
+  const cvMacd = document.createElement('canvas'); cvMacd.style.maxHeight='210px'; cMacd.appendChild(cvMacd);
+  root.appendChild(cMacd);
+
+  let chartMain=null, chartMacd=null;
+  function slice(arr,n){ return n>0 ? arr.slice(-n) : arr; }
+  function redraw(){
+    const s = t.series;
+    const dates = slice(s.dates, lookback).map(dshort);
+    const close = slice(s.close, lookback);
+    const ds = [
+      {label:'DSEX', data:close, color:TH.accent, width:2.1, fill:true},
+      {label:'MA(3)', data:slice(s.ma3,lookback), color:'#f59e0b', width:1.2},
+      {label:'MA(9)', data:slice(s.ma9,lookback), color:'#a78bfa', width:1.2},
+      {label:'MA(21)', data:slice(s.ma21,lookback), color:'#2dd4bf', width:1.2},
+    ];
+    t.resistances.forEach(lvl=>{
+      ds.push({label:`R ${fnum(lvl.level,0)}`, data:dates.map(()=>lvl.level), color:TH.down, width:1, dash:[5,4]});
+    });
+    t.supports.forEach(lvl=>{
+      ds.push({label:`S ${fnum(lvl.level,0)}`, data:dates.map(()=>lvl.level), color:TH.up, width:1, dash:[5,4]});
+    });
+    if(chartMain) chartMain.destroy();
+    chartMain = lineChart(cv, dates, ds, {plugins:{legend:{position:'top',align:'end',
+      labels:{usePointStyle:true,pointStyle:'line',boxWidth:14,boxHeight:2,padding:9,font:{size:9.5}}}}});
+
+    if(chartMacd) chartMacd.destroy();
+    const hist = slice(s.hist,lookback);
+    chartMacd = new Chart(cvMacd.getContext('2d'), {
+      data:{ labels:dates, datasets:[
+        {type:'bar', label:'Histogram', data:hist, borderSkipped:false, borderRadius:1,
+          backgroundColor:hist.map(v=>v>=0?hexA(TH.up,.55):hexA(TH.down,.55))},
+        {type:'line', label:'MACD', data:slice(s.macd,lookback), borderColor:TH.accent, pointRadius:0, borderWidth:1.6, tension:.15},
+        {type:'line', label:'Signal', data:slice(s.signal,lookback), borderColor:'#f59e0b', pointRadius:0, borderWidth:1.6, tension:.15},
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, animation:false, interaction:{mode:'index',intersect:false},
+        plugins:{legend:{position:'top',align:'end',labels:{usePointStyle:true,boxWidth:9,padding:10,font:{size:10}}}},
+        scales:{x:{grid:{display:false},border:{color:TH.line},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:9.5}}},
+          y:{grid:{color:hexA(TH.line,.5),drawTicks:false},border:{display:false},ticks:{font:{size:9.5}}}} }
+    });
+    CHARTS.push(chartMacd);
+  }
+  redraw();
+
+  const g2 = el('div','grid2');
+  const cTrend = card('Trend position');
+  const tTrend = document.createElement('div'); cTrend.appendChild(tTrend);
+  const trendRows = ['3','9','21'].map(w=>{
+    const val = t.ma[w]; const gap = val ? (t.spot/val-1)*100 : null;
+    return {ma:`MA(${w})`, level:val, is: t.trend[w] ? t.trend[w][0].toUpperCase()+t.trend[w].slice(1) : '-', gap};
+  });
+  trendRows.push({ma:'RSI(14)', level:t.rsi, is: t.rsi>70?'Overbought':(t.rsi<30?'Oversold':'Neutral'), gap:null});
+  buildTable(tTrend, [{key:'ma',label:'Indicator'},{key:'level',label:'Level',align:'right',format:'num2'},
+    {key:'is',label:'Index is',align:'center'},{key:'gap',label:'Gap',align:'right',format:'pct2',color:true}], trendRows,
+    {search:false, rowTintBy:'gap'});
+  g2.appendChild(cTrend);
+
+  const cMacdT = card('MACD summary');
+  const tMacdT = document.createElement('div'); cMacdT.appendChild(tMacdT);
+  buildTable(tMacdT, [{key:'k',label:'MACD'},{key:'v',label:'Value',align:'right'}], [
+    {k:'MACD line', v:fnum(t.macd,3)}, {k:'Signal line', v:fnum(t.macd_signal,3)},
+    {k:'Histogram', v:fnum(t.macd_hist,3)},
+    {k:'Reading', v: t.macd_cross[0].toUpperCase()+t.macd_cross.slice(1)+(t.macd_flip?' (fresh cross)':'')},
+  ], {search:false});
+  g2.appendChild(cMacdT);
+  root.appendChild(g2);
+
+  const cSR = card('Support & resistance', `Swing pivots over a ±${t.params.swing_window}-bar window, clustered within ${t.params.tolerance_pct}%, minimum ${t.params.min_touches} touches; level price is the turnover-weighted mean of its touches.`);
+  const tSR = document.createElement('div'); cSR.appendChild(tSR);
+  const srRows = [
+    ...t.resistances.map(l=>({type:'Resistance', ...l})).reverse(),
+    {type:'DSEX close', level:t.spot, touches:null, vol_confirmation:null, distance_pct:null, last_touch_date:DATA.meta.as_of},
+    ...t.supports.map(l=>({type:'Support', ...l})),
+  ];
+  buildTable(tSR, [{key:'type',label:'Level type'},{key:'level',label:'Index level',align:'right',format:'num2'},
+    {key:'distance_pct',label:'Distance',align:'right',format:'pct2',color:true},{key:'touches',label:'Touches',align:'right',format:'int'},
+    {key:'vol_confirmation',label:'Vol conf',align:'right',format:'x'},{key:'last_touch_date',label:'Last touch',align:'right',format:'date'},
+  ], srRows, {search:false, rowTintBy:'distance_pct'});
+  root.appendChild(cSR);
+
+  const cRead = card('Reading');
+  cRead.appendChild(el('div','reading', t.reading));
+  root.appendChild(cRead);
+};
+
+/* ---------------------------------------------------------------------
+   EXTREMES tab
+--------------------------------------------------------------------- */
+initializers.extremes = function(){
+  const root = document.getElementById('tab-extremes');
+  const es = DATA.extremes_summary;
+  const cSumm = card('New extremes hit today');
+  const tSumm = document.createElement('div'); cSumm.appendChild(tSumm);
+  buildTable(tSumm, [{key:'window',label:'Window'},{key:'hi',label:'New highs',align:'right',format:'int'},
+    {key:'lo',label:'New lows',align:'right',format:'int'},{key:'basis',label:'Basis'}], [
+    {window:'52-week', hi:es.hi52, lo:es.lo52, basis:'ALL DATA / 52 week High & Low'},
+    {window:'5-year', hi:es.ext5.covered?es.ext5.hi:null, lo:es.ext5.covered?es.ext5.lo:null,
+      basis: es.ext5.covered ? 'Historical Data CP*' : `History starts ${dstr(es.hist_span_from)} — not covered`},
+    {window:'10-year', hi:es.ext10.covered?es.ext10.hi:null, lo:es.ext10.covered?es.ext10.lo:null,
+      basis: es.ext10.covered ? 'Historical Data CP*' : `History starts ${dstr(es.hist_span_from)} — not covered`},
+  ], {search:false});
+  root.appendChild(cSumm);
+
+  const hlCols = [{key:'ticker',label:'Ticker'},{key:'sector',label:'Sector'},{key:'close',label:'Close',align:'right',format:'num2'},
+    {key:'day',label:'Day %',align:'right',format:'pct2',color:true},{key:'vs_level',label:'vs level',align:'right',format:'pct2',color:true},
+    {key:'ytd',label:'YTD %',align:'right',format:'pct2',color:true},{key:'qoq',label:'EPS QoQ',align:'right',format:'pctnm',color:true},
+    {key:'yoy',label:'EPS YoY',align:'right',format:'pctnm',color:true}];
+
+  const cHi = card(`Higher price check list — ${es.hi52} scrip(s) at or through the 52-week high`);
+  if(DATA.hi_list.length){ const tHi=document.createElement('div'); cHi.appendChild(tHi);
+    buildTable(tHi, hlCols, DATA.hi_list, {rowTintBy:'day'}); }
+  else cHi.appendChild(el('div','empty-note','No scrip closed at a new 52-week high today.'));
+  root.appendChild(cHi);
+
+  const cLo = card(`Lower price check list — ${es.lo52} scrip(s) at or through the 52-week low`);
+  if(DATA.lo_list.length){ const tLo=document.createElement('div'); cLo.appendChild(tLo);
+    buildTable(tLo, hlCols, DATA.lo_list, {rowTintBy:'day'}); }
+  else cLo.appendChild(el('div','empty-note','No scrip closed at a new 52-week low today.'));
+  root.appendChild(cLo);
+  const noteBox = el('div','note',
+    "Scrips that did not trade today are excluded. 'vs level' is the close against the stored extreme; " +
+    "EPS QoQ compares the latest published quarter with the previous quarter of the same year, EPS YoY with " +
+    "the same quarter a year earlier — 'n/m' marks a swing off a near-zero base.");
+  root.appendChild(noteBox);
+
+  const g2 = el('div','grid2');
+  const nCols = [{key:'ticker',label:'Ticker'},{key:'close',label:'Close',align:'right',format:'num2'},
+    {key:'level',label:'52W level',align:'right',format:'num2'},{key:'gap',label:'Gap',align:'right',format:'pct2',color:true},
+    {key:'day',label:'Day %',align:'right',format:'pct2',color:true}];
+  const cNHi = card('Approaching the 52-week high', 'traded scrips within 3% of their high');
+  if(DATA.near_hi.length){ const t=document.createElement('div'); cNHi.appendChild(t); buildTable(t,nCols,DATA.near_hi,{search:false,rowTintBy:'day'}); }
+  else cNHi.appendChild(el('div','empty-note','Nothing within 3% of a 52-week high.'));
+  g2.appendChild(cNHi);
+  const cNLo = card('Approaching the 52-week low', 'traded scrips within 3% of their low');
+  if(DATA.near_lo.length){ const t=document.createElement('div'); cNLo.appendChild(t); buildTable(t,nCols,DATA.near_lo,{search:false,rowTintBy:'day'}); }
+  else cNLo.appendChild(el('div','empty-note','Nothing within 3% of a 52-week low.'));
+  g2.appendChild(cNLo);
+  root.appendChild(g2);
+};
+
+/* ---------------------------------------------------------------------
+   LEADERBOARDS tab
+--------------------------------------------------------------------- */
+initializers.leaderboards = function(){
+  const root = document.getElementById('tab-leaderboards');
+  const L = DATA.leaderboards;
+  const g2 = el('div','grid2');
+  const cMA = card('Most active by sector', 'highest V/TPS in each sector');
+  const tMA = document.createElement('div'); cMA.appendChild(tMA);
+  buildTable(tMA, [{key:'group',label:'Sector'},{key:'ticker',label:'Ticker'},
+    {key:'value_mn',label:'Value (mn)',align:'right',format:'num1'},{key:'day',label:'Day %',align:'right',format:'pct2',color:true}],
+    L.most_active_by_sector, {rowTintBy:'day'});
+  g2.appendChild(cMA);
+  const cTL = card('Turnover leaders by sector', 'highest turnover value in each sector');
+  const tTL = document.createElement('div'); cTL.appendChild(tTL);
+  buildTable(tTL, [{key:'group',label:'Sector'},{key:'ticker',label:'Ticker'},
+    {key:'value_mn',label:'Value (mn)',align:'right',format:'num1'},{key:'day',label:'Day %',align:'right',format:'pct2',color:true}],
+    L.turnover_leaders_by_sector, {rowTintBy:'day'});
+  g2.appendChild(cTL);
+  root.appendChild(g2);
+
+  const g2b = el('div','grid2');
+  const cMAC = card('Most active by cap segment', 'top 3 by V/TPS in each Mcap Segment');
+  const tMAC = document.createElement('div'); cMAC.appendChild(tMAC);
+  buildTable(tMAC, [{key:'group',label:'Segment'},{key:'ticker',label:'Ticker'},
+    {key:'metric',label:'V/TPS',align:'right',format:'num2'},{key:'day',label:'Day %',align:'right',format:'pct2',color:true}],
+    L.most_active_by_cap, {rowTintBy:'day'});
+  g2b.appendChild(cMAC);
+  const cTLC = card('Turnover leaders by cap segment', 'top 3 by turnover value in each Mcap Segment');
+  const tTLC = document.createElement('div'); cTLC.appendChild(tTLC);
+  buildTable(tTLC, [{key:'group',label:'Segment'},{key:'ticker',label:'Ticker'},
+    {key:'value_mn',label:'Value (mn)',align:'right',format:'num1'},{key:'day',label:'Day %',align:'right',format:'pct2',color:true}],
+    L.turnover_leaders_by_cap, {rowTintBy:'day'});
+  g2b.appendChild(cTLC);
+  root.appendChild(g2b);
+
+  const cTop = card('Top 12 by turnover — whole market');
+  const tTop = document.createElement('div'); cTop.appendChild(tTop);
+  buildTable(tTop, [{key:'ticker',label:'Ticker'},{key:'sector',label:'Sector'},{key:'close',label:'Close',align:'right',format:'num2'},
+    {key:'day',label:'Day %',align:'right',format:'pct2',color:true},{key:'value',label:'Value (mn)',align:'right',format:'num1'},
+    {key:'trade',label:'Trades',align:'right',format:'int'},{key:'vol',label:'Volume',align:'right',format:'int'}],
+    L.top12_market, {rowTintBy:'day'});
+  root.appendChild(cTop);
+};
+
+/* ---------------------------------------------------------------------
+   BLOCKS tab
+--------------------------------------------------------------------- */
+initializers.blocks = function(){
+  const root = document.getElementById('tab-blocks');
+  const b = DATA.blocks;
+  const kpiRow = el('div','kpi-row');
+  [['Block trades', fint(b.totals.trades), `${b.rows.length} instruments`],
+   ['Block volume', fint(b.totals.qty), 'shares'],
+   ['Block value · BDT mn', fnum(b.totals.value,1), b.totals.pct_of_turnover!=null ? fpct(b.totals.pct_of_turnover,2,false)+' of market turnover' : NA],
+  ].forEach(([lbl,val,sub])=>{
+    const c=el('div','kpi-card'); c.appendChild(el('div','kpi-label',lbl));
+    const main=el('div','kpi-main'); main.appendChild(el('div','kpi-value',val)); c.appendChild(main);
+    c.appendChild(el('div','kpi-sub',sub)); kpiRow.appendChild(c);
+  });
+  root.appendChild(kpiRow);
+
+  const cTbl = card(`All ${b.rows.length} block transactions`, 'DSE / Prices in Block Transactions table');
+  const tot = b.totals.value || 1;
+  const rows = b.rows.map(r=>({...r, spread: (r.max&&r.min)?((r.max/r.min-1)*100):0, pctOfBlock: r.value/tot*100}));
+  const t = document.createElement('div'); cTbl.appendChild(t);
+  buildTable(t, [{key:'code',label:'Instrument'},{key:'max',label:'Max price',align:'right',format:'num2'},
+    {key:'min',label:'Min price',align:'right',format:'num2'},{key:'spread',label:'Spread',align:'right',format:'pct2ns'},
+    {key:'trades',label:'Trades',align:'right',format:'int'},{key:'qty',label:'Volume',align:'right',format:'int'},
+    {key:'value',label:'Value (mn)',align:'right',format:'num2'},{key:'pctOfBlock',label:'% of block',align:'right',format:'pct2ns'},
+  ], rows, {defaultSort:'value'});
+  root.appendChild(cTbl);
+
+  if(b.rows.length){
+    const cChart = card('Block value concentration', 'top 12 instruments by block value (BDT mn)');
+    const cv = document.createElement('canvas'); cChart.appendChild(cv);
+    root.appendChild(cChart);
+    const top = b.rows.slice(0,12);
+    barChart(cv, top.map(r=>r.code), top.map(r=>r.value), {color:hexA(TH.accent,.75), tooltipFmt:v=>fnum(v,2)+' mn'});
+  }
+};
+
+/* ---------------------------------------------------------------------
+   MACRO tab
+--------------------------------------------------------------------- */
+initializers.macro = function(){
+  const root = document.getElementById('tab-macro');
+  const mc = DATA.macro;
+  root.appendChild(el('div','banner '+(mc.stale?'warn':'ok'),
+    `External macro inputs retrieved ${mc.retrieved||NA}${mc.stale?' — STALE, refresh macro_data.json':''}`));
+
+  const g2 = el('div','grid2');
+  const cYC = card('Govt securities yield curve', 'latest auction cut-off by tenor — External source');
+  const yc = mc.yield_curve || {};
+  const tenors = yc.tenors || [];
+  if(tenors.length){
+    const cv = document.createElement('canvas'); cv.style.maxHeight='210px'; cYC.appendChild(cv);
+    lineChart(cv, tenors.map(t=>t.tenor), [
+      {label:'Cut-off yield %', data:tenors.map(t=>t.yield), color:TH.accent, fill:true},
+      {label:'Prior month %', data:tenors.map(t=>t.prev_month), color:TH.flat, dash:[4,3]},
+    ]);
+    const t = document.createElement('div'); cYC.appendChild(t);
+    buildTable(t, [{key:'tenor',label:'Tenor'},{key:'yield',label:'Cut-off yield',align:'right',format:(v)=>v!=null?v.toFixed(4)+'%':NA},
+      {key:'auction_date',label:'Auction',align:'right',format:'date'},
+      {key:'mom',label:'MoM',align:'right',format:(v)=>v!=null?fpct(v)+'pp':'n/a', color:true}],
+      tenors.map(t=>({...t, mom: (t.prev_month!=null&&t.yield!=null)? t.yield-t.prev_month : null})), {search:false});
+  } else cYC.appendChild(el('div','empty-note', `${NA} — macro_data.json holds no yield-curve entries.`));
+  g2.appendChild(cYC);
+
+  const cInf = card('Point-to-point inflation', 'year-on-year CPI, monthly — External source');
+  const infl = mc.inflation || {};
+  const series = infl.series || [];
+  if(series.length){
+    const cv = document.createElement('canvas'); cv.style.maxHeight='210px'; cInf.appendChild(cv);
+    lineChart(cv, series.map(s=>s.month), [{label:'General inflation %', data:series.map(s=>s.general), color:'#f59e0b', fill:true}]);
+    const t = document.createElement('div'); cInf.appendChild(t);
+    buildTable(t, [{key:'month',label:'Month'},{key:'general',label:'General',align:'right',format:(v)=>v!=null?v.toFixed(2)+'%':NA},
+      {key:'food',label:'Food',align:'right',format:(v)=>v!=null?v.toFixed(2)+'%':'n/a'},
+      {key:'non_food',label:'Non-food',align:'right',format:(v)=>v!=null?v.toFixed(2)+'%':'n/a'}], series, {search:false});
+  } else cInf.appendChild(el('div','empty-note', `${NA} — macro_data.json holds no inflation series.`));
+  g2.appendChild(cInf);
+  root.appendChild(g2);
+
+  const cSrc = card('External source attribution');
+  const lines = [];
+  if(yc.source) lines.push(`Yield curve — ${yc.source}`);
+  if(yc.note) lines.push(yc.note);
+  if(infl.source) lines.push(`Inflation — ${infl.source}`);
+  if(infl.note) lines.push(infl.note);
+  cSrc.appendChild(el('div','note', lines.length ? lines.join('<br>') : `No external macro source recorded — both panels show ${NA}.`));
+  root.appendChild(cSrc);
+
+  const cBonds = card('Listed treasury / corporate bond prices', 'DSE / Treasury Bond table — workbook data, not external');
+  const tB = document.createElement('div'); cBonds.appendChild(tB);
+  buildTable(tB, [{key:'code',label:'Instrument'},{key:'close',label:'Close',align:'right',format:'num2'},
+    {key:'ycp',label:'YCP',align:'right',format:'num2'},
+    {key:'chg',label:'Change',align:'right',format:'pct2',color:true},
+    {key:'trade',label:'Trades',align:'right',format:'int'},{key:'value',label:'Value (mn)',align:'right',format:'num2'},
+    {key:'vol',label:'Volume',align:'right',format:'int'}],
+    mc.bonds.map(b=>({...b, chg:(b.close&&b.ycp)?((b.close/b.ycp-1)*100):null})), {defaultSort:'value', rowTintBy:'chg'});
+  root.appendChild(cBonds);
+};
+
+/* ---------------------------------------------------------------------
+   GLOBAL tab
+--------------------------------------------------------------------- */
+initializers.global = function(){
+  const root = document.getElementById('tab-global');
+  const g = DATA.global;
+  const all = [...g.commodities, ...g.indices];
+  if(all.length){
+    const cChart = card('Day change across the board');
+    const cv = document.createElement('canvas'); cChart.appendChild(cv);
+    root.appendChild(cChart);
+    const ordered = [...all].sort((a,b)=>(b.pct||0)-(a.pct||0));
+    barChart(cv, ordered.map(i=>i.name), ordered.map(i=>i.pct||0),
+      {colorFn:v=>v>=0?hexA(TH.up,.85):hexA(TH.down,.85), tooltipFmt:v=>fpct(v)});
+  }
+  const gCols = [{key:'name',label:'Instrument'},{key:'date',label:'Date',format:'dateshort'},
+    {key:'open',label:'Open',align:'right',format:'num2'},{key:'high',label:'High',align:'right',format:'num2'},
+    {key:'low',label:'Low',align:'right',format:'num2'},{key:'close',label:'Close',align:'right',format:'num2'},
+    {key:'prev',label:'Prev',align:'right',format:'num2'},{key:'chg',label:'Change',align:'right',format:'num2',color:true},
+    {key:'pct',label:'%',align:'right',format:'pct2',color:true}];
+  if(g.commodities.length){
+    const c = card('Commodities'); const t = document.createElement('div'); c.appendChild(t);
+    buildTable(t, gCols, g.commodities, {search:false, rowTintBy:'pct'}); root.appendChild(c);
+  }
+  if(g.indices.length){
+    const c = card('International indices'); const t = document.createElement('div'); c.appendChild(t);
+    buildTable(t, gCols, g.indices, {search:false, rowTintBy:'pct'}); root.appendChild(c);
+  }
+  if(!all.length) root.appendChild(el('div','empty-note','The Global Markets table is empty in this refresh.'));
+};
+
+/* ---------------------------------------------------------------------
+   CALENDAR tab
+--------------------------------------------------------------------- */
+initializers.calendar = function(){
+  const root = document.getElementById('tab-calendar');
+  const cal = DATA.calendar;
+  const calCols = [{key:'date',label:'Date',format:'date'},{key:'ticker',label:'Ticker'},
+    {key:'cash',label:'Cash %',align:'right',format:'num1'},{key:'stock',label:'Stock %',align:'right',format:'num1'},
+    {key:'yield',label:'Yield',align:'right',format:'pct2ns'}];
+
+  const dateFrom = document.createElement('input'); dateFrom.type='date';
+  const dateTo = document.createElement('input'); dateTo.type='date';
+  const dateWrap = el('div'); dateWrap.appendChild(document.createTextNode('From '));
+  dateWrap.appendChild(dateFrom);
+  dateWrap.appendChild(document.createTextNode(' to ')); dateWrap.appendChild(dateTo);
+  dateWrap.className = 'tbl-toolbar';
+
+  const g2 = el('div','grid2');
+  const cRec = card('Upcoming record dates', 'next 60 days');
+  const tRec = document.createElement('div'); cRec.appendChild(tRec);
+  const cAgm = card('Upcoming AGMs', 'next 60 days');
+  const tAgm = document.createElement('div'); cAgm.appendChild(tAgm);
+
+  let hRec, hAgm;
+  function inRange(r){
+    if(dateFrom.value && r.date < dateFrom.value) return false;
+    if(dateTo.value && r.date > dateTo.value) return false;
+    return true;
+  }
+  if(cal.records.length){ hRec = buildTable(tRec, calCols, cal.records, {search:false}); }
+  else cRec.appendChild(el('div','empty-note','No record dates fall in the next 60 days.'));
+  if(cal.agms.length){ hAgm = buildTable(tAgm, calCols, cal.agms, {search:false}); }
+  else cAgm.appendChild(el('div','empty-note','No AGMs fall in the next 60 days.'));
+  [dateFrom,dateTo].forEach(inp=>inp.addEventListener('change', ()=>{
+    if(hRec) hRec.setFilter(inRange); if(hAgm) hAgm.setFilter(inRange);
+  }));
+  const cDateFilter = card('Date range filter'); cDateFilter.appendChild(dateWrap);
+  root.appendChild(cDateFilter);
+  g2.appendChild(cRec); g2.appendChild(cAgm);
+  root.appendChild(g2);
+
+  const cTalk = card('Talk of the Market');
+  if(cal.talk_of_market){
+    cTalk.appendChild(el('div','commentary', cal.talk_of_market));
+    cTalk.appendChild(el('div','note','Source: macro_data.json / talk_of_the_market (external).'));
+  } else if(cal.talk_hits && cal.talk_hits.length){
+    cTalk.appendChild(el('ul','commentary', cal.talk_hits.map(h=>`<li>${h}</li>`).join('')));
+    cTalk.appendChild(el('div','note', `Auto-drafted from the latest daily-bd-financial-news briefing (${cal.news_file}) — external to the workbook, review before circulating.`));
+  } else {
+    cTalk.appendChild(el('div','empty-note',
+      '[ To be filled in ]  No daily-bd-financial-news briefing was found, and macro_data.json has no talk_of_the_market entry. ' +
+      'Regulatory circulars and policy news are not derivable from the workbook, so this section is left blank rather than invented.'));
+  }
+  root.appendChild(cTalk);
+
+  const cProv = card('Data provenance for this dashboard');
+  const tProv = document.createElement('div'); cProv.appendChild(tProv);
+  buildTable(tProv, [{key:'section',label:'Section'},{key:'source',label:'Source'},
+    {key:'origin',label:'Origin',align:'center'}],
+    DATA.provenance, {search:false});
+  // origin pill needs raw HTML -- patch after render since buildTable sets textContent
+  Array.from(tProv.querySelectorAll('tbody tr')).forEach((tr,i)=>{
+    const cell = tr.children[2];
+    const origin = DATA.provenance[i].origin;
+    cell.innerHTML = `<span class="pill ${origin.toLowerCase()}">${origin}</span>`;
+  });
+  root.appendChild(cProv);
+};
+
+/* ---------------------------------------------------------------------
+   boot
+--------------------------------------------------------------------- */
+renderHeader();
+renderTabNav();
+activateTab('overview');
+savePrev();   // remember this refresh's values so the next one can flash the deltas
+</script>
+</body>
+</html>

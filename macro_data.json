@@ -1,0 +1,44 @@
+{
+  "_readme": [
+    "Slide 10 macro inputs. NONE of this is in DSE MARKET UPDATE.xlsb -- it is",
+    "sourced externally and is labelled as such on the slide. Leave a value as",
+    "null and the deck prints 'Not Available' rather than estimating it.",
+    "Refresh 'retrieved' whenever you update the numbers; the slide warns once",
+    "the data is older than 'stale_after_days'."
+  ],
+  "retrieved": "2026-08-24",
+  "stale_after_days": 10,
+  "yield_curve": {
+    "source": "Bangladesh Bank -- Treasury Bill/Bond auction results (bb.org.bd/en/index.php/monetaryactivity/treasury)",
+    "note": "Latest auction cut-off yield per tenor. Prior-month cut-offs are not published on the live auction page and could not be confirmed, so the month-over-month column is reported as Not Available rather than estimated.",
+    "tenors": [
+      {"tenor": "91D",  "auction_date": "2026-08-24", "yield": 8.8290, "prev_month": null},
+      {"tenor": "182D", "auction_date": "2026-08-24", "yield": 8.9200, "prev_month": null},
+      {"tenor": "364D", "auction_date": "2026-08-24", "yield": 9.0700, "prev_month": null},
+      {"tenor": "2Y",   "auction_date": "2026-08-09", "yield": 9.3900, "prev_month": null},
+      {"tenor": "5Y",   "auction_date": "2026-08-12", "yield": 9.3496, "prev_month": null},
+      {"tenor": "10Y",  "auction_date": "2026-08-19", "yield": 9.2340, "prev_month": null},
+      {"tenor": "15Y",  "auction_date": "2026-07-29", "yield": 10.3425, "prev_month": null},
+      {"tenor": "20Y",  "auction_date": "2026-07-29", "yield": 10.4000, "prev_month": null}
+    ]
+  },
+  "inflation": {
+    "source": "Bangladesh Bureau of Statistics monthly CPI release, via The Financial Express / BSS / Trading Economics",
+    "note": "Point-to-point (year-on-year) inflation. Food and non-food splits confirmed for Jun-26 and Jul-26 only.",
+    "series": [
+      {"month": "Apr-26", "general": 9.04, "food": null, "non_food": null},
+      {"month": "May-26", "general": 9.42, "food": null, "non_food": null},
+      {"month": "Jun-26", "general": 9.16, "food": 8.60, "non_food": 9.61},
+      {"month": "Jul-26", "general": 8.32, "food": 7.16, "non_food": 9.28}
+    ],
+    "latest_detail": {
+      "month": "Jul-26",
+      "rural": 8.36,
+      "urban": 8.24,
+      "rural_food": 7.14,
+      "urban_food": 7.21
+    }
+  },
+  "policy_rate": {"value": null, "as_of": null, "source": null},
+  "talk_of_the_market": null
+}
