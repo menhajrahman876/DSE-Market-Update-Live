@@ -545,24 +545,12 @@ function renderHeader(){
     `${DATA.meta.n_tickers} tickers  ·  ${DATA.meta.n_sessions} sessions ` +
     `(${dstr(DATA.meta.hist_span_from)} → ${dstr(DATA.meta.hist_span_to)})`;
   document.getElementById('hdr-snapshot').textContent =
-    `Static snapshot, generated ${DATA.meta.generated_at.replace('T',' ')}. This page does not auto-refresh — ` +
-    `re-run dse_live_dashboard.py (same cadence as the PPTX) to update it.`;
+    `Snapshot generated ${DATA.meta.generated_at.replace('T',' ')} — refreshed periodically, not real-time.`;
 
-  // The Streamlit wrapper rewrites #hdr-snapshot to say it is live; watch for
-  // that and switch the status dot from "static" (amber) to a pulsing green.
-  const dot = document.getElementById('hdr-live-dot');
-  const snap = document.getElementById('hdr-snapshot');
-  // "live" has to be the status, not just any stray match -- the static
-  // message names dse_live_dashboard.py, so require a live claim AND the
-  // absence of the static wording before the dot starts pulsing green.
-  const syncDot = ()=>{
-    const txt = (snap.textContent || '').trim();
-    const claimsLive = /\blive\b|auto-refresh(?:es|ing)?\b|reloads every/i.test(txt);
-    const claimsStatic = /static snapshot|does not auto-refresh/i.test(txt);
-    dot.classList.toggle('live', claimsLive && !claimsStatic);
-  };
-  syncDot();
-  new MutationObserver(syncDot).observe(snap, {childList:true, characterData:true, subtree:true});
+  // This build only ever shows a periodic snapshot (no live data source is
+  // reachable from where it's hosted), so the status dot stays amber/static
+  // -- it's just a visual anchor for the label, not a live/dead toggle.
+  document.getElementById('hdr-live-dot').classList.remove('live');
 
   const chips = document.getElementById('hdr-chips');
   const k = DATA.kpi, t = DATA.trend;

@@ -21,3 +21,13 @@ desktop.ini
 *~
 *.swp
 ~$*
+
+# --- maintainer-only local tooling: references this machine's absolute
+# paths and drives the push itself, so it stays out of the public repo ---
+Refresh Snapshot and Push.bat
+watch_and_publish.py
+Enable Auto-Publish.ps1
+Disable Auto-Publish.bat
+.last_synced_mtime
+.watch_lock
+auto_publish.log
