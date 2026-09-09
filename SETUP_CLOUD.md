@@ -67,7 +67,7 @@ triggered pipeline to a fully automated, cloud-based system.
 
    | Secret name | Value |
    |---|---|
-   | `GCP_SA_KEY` | Paste the **entire contents** of the `.json` key file |
+   | `DSE_DASHBOARD_KEY` | Paste the **entire contents** of the `.json` key file |
    | `GSHEET_ID` | The spreadsheet ID from step 1 |
 
 ---

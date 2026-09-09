@@ -25,7 +25,7 @@ jobs:
 
       - name: Generate dashboard snapshot
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_SA_KEY: ${{ secrets.DSE_DASHBOARD_KEY }}
           GSHEET_ID: ${{ secrets.GSHEET_ID }}
         run: python dse_live_dashboard.py --gsheet --out dashboard_snapshot.html
 
