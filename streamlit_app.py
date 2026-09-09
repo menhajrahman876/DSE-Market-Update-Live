@@ -1,30 +1,16 @@
 r"""
 DSE Market Update — Live | Streamlit Community Cloud entry point (static viewer).
 
-Streamlit Community Cloud runs Linux and has neither Excel/pywin32 nor access
-to the local Google Drive workbook, so it CANNOT scrape live data. Instead
-this app displays a pre-generated, self-contained snapshot committed to the
-repo:
+Displays a pre-generated, self-contained snapshot committed to the repo:
 
-    dashboard_snapshot.html   <- built locally by dse_live_dashboard.py
+    dashboard_snapshot.html
 
-To refresh what Cloud shows, regenerate the snapshot on a machine that has the
-workbook and push it:
+The snapshot is refreshed automatically every trading day by a GitHub Actions
+cron job that reads a private Google Sheet, runs the analytics pipeline, and
+commits the updated HTML.  Cloud redeploys automatically on push.
 
-    python dse_live_dashboard.py \
-        --workbook "PATH/TO/DSE MARKET UPDATE.xlsx" \
-        --out dashboard_snapshot.html
-    git commit -am "Refresh snapshot" && git push
-
-Cloud redeploys automatically on push. The snapshot's own header shows the
-exact "as of" / "workbook refreshed" / "generated" timestamps, so viewers
-always know how fresh it is.
-
-The page also has a "Refresh" button. It ONLY re-reads dashboard_snapshot.html
-from disk (via st.rerun()) -- useful in the minute or two right after a push,
-while Cloud is still swapping to the new container. It never talks to dsebd.org
-or the workbook; there is no button anywhere that can, because this process
-has no path to either.
+The snapshot's own header shows the exact "as of" / "workbook refreshed" /
+"generated" timestamps so viewers always know how fresh it is.
 """
 
 from pathlib import Path
@@ -48,12 +34,12 @@ st.markdown("""
 
 top_l, top_r = st.columns([6, 1])
 with top_l:
-    st.caption("Periodic snapshot pushed from the maintainer's PC — not a live market feed.")
+    st.caption("Auto-refreshed daily after market close via GitHub Actions — not a live market feed.")
 with top_r:
     if st.button("🔄 Refresh", use_container_width=True,
                  help="Re-reads dashboard_snapshot.html from disk. Shows new data only "
-                      "after the maintainer has pushed an update — it does not re-scrape "
-                      "the market itself."):
+                      "after the GitHub Actions job has pushed an update — it does not "
+                      "re-scrape the market itself."):
         st.rerun()
 
 if not SNAPSHOT.exists():

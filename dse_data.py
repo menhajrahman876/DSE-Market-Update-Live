@@ -1,14 +1,15 @@
 r"""
 DSE MARKET UPDATE -- data layer.
 
-Reads "DSE MARKET UPDATE.xlsx" and exposes every table the day-end report
-needs.  Nothing about the workbook's geometry is hardcoded: the DSE sheet's
-side-by-side tables are found by scanning for their banner text and walking
-each banner's contiguous header block, and Historical Data's date columns
-and section blocks are discovered the same way.  Column letters can move as
-the file grows without breaking this module.
+Reads "DSE MARKET UPDATE.xlsx" (local) **or** a Google Sheet (cloud) and
+exposes every table the day-end report needs.  Nothing about the workbook's
+geometry is hardcoded: the DSE sheet's side-by-side tables are found by
+scanning for their banner text and walking each banner's contiguous header
+block, and Historical Data's date columns and section blocks are discovered
+the same way.  Column letters can move as the file grows without breaking
+this module.
 
-Dependencies: openpyxl, numpy.
+Dependencies: openpyxl, numpy.  Google Sheets mode adds gspread + google-auth.
 """
 
 from __future__ import annotations
@@ -144,6 +145,38 @@ def read_workbook(path):
             sheets[name] = Sheet(name, cells, nrows, ncols)
     finally:
         wb.close()
+    return sheets
+
+
+def read_google_sheets(spreadsheet_id, creds_info):
+    """{sheet name: Sheet} from a Google Sheet via the Sheets API.
+
+    creds_info: parsed dict from the service-account JSON key.
+    Uses UNFORMATTED_VALUE so numbers and date-serials come back the same way
+    openpyxl's data_only=True returns them.
+    """
+    import gspread
+    from google.oauth2.service_account import Credentials
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly",
+              "https://www.googleapis.com/auth/drive.readonly"]
+    creds = Credentials.from_service_account_info(creds_info, scopes=scopes)
+    gc = gspread.authorize(creds)
+    spreadsheet = gc.open_by_key(spreadsheet_id)
+
+    sheets = {}
+    for ws in spreadsheet.worksheets():
+        raw = ws.get_all_values(value_render_option="UNFORMATTED_VALUE")
+        cells, nrows, ncols = {}, 0, 0
+        for r, row_data in enumerate(raw):
+            for c, v in enumerate(row_data):
+                if v is not None and v != "":
+                    cells[(r, c)] = v
+                    if r + 1 > nrows:
+                        nrows = r + 1
+                    if c + 1 > ncols:
+                        ncols = c + 1
+        sheets[ws.title] = Sheet(ws.title, cells, nrows, ncols)
     return sheets
 
 
@@ -311,9 +344,15 @@ class Historical:
 # --------------------------------------------------------------------------
 
 class Workbook:
-    def __init__(self, path):
-        self.path = Path(path)
-        self.sheets = read_workbook(self.path)
+    def __init__(self, path=None, *, gsheet_id=None, gsheet_creds=None):
+        if gsheet_id is not None:
+            self.path = Path("DSE MARKET UPDATE (Google Sheets)")
+            self.sheets = read_google_sheets(gsheet_id, gsheet_creds)
+        elif path is not None:
+            self.path = Path(path)
+            self.sheets = read_workbook(self.path)
+        else:
+            raise ValueError("Provide either path or gsheet_id + gsheet_creds")
         self.dse = parse_dse_sheet(self.sheets["DSE"])
         self.hist = Historical(self.sheets["Historical Data"])
         self.all_data = self._all_data()

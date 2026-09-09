@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -463,9 +464,12 @@ def render(payload):
     return html.replace(DATA_PLACEHOLDER, data_js)
 
 
-def build(workbook_path, out_path=None):
-    print(f"Reading {workbook_path} ...")
-    wb = Workbook(workbook_path)
+def build(workbook_path=None, out_path=None, *, wb=None):
+    if wb is None:
+        print(f"Reading {workbook_path} ...")
+        wb = Workbook(workbook_path)
+    else:
+        print(f"Reading from {wb.path.name} ...")
     missing = wb.dse.get("_missing") or []
     if missing:
         print(f"  ! DSE sheet tables not found: {', '.join(missing)}")
@@ -486,13 +490,26 @@ def build(workbook_path, out_path=None):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--workbook", default=str(DEFAULT_WB))
+    ap.add_argument("--gsheet", action="store_true",
+                    help="Read from Google Sheets (needs GSHEET_ID + GCP_SA_KEY env vars)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
-    wb_path = Path(args.workbook)
-    if not wb_path.exists():
-        print(f"Workbook not found: {wb_path}")
-        return 1
-    build(wb_path, args.out)
+
+    if args.gsheet:
+        gsheet_id = os.environ.get("GSHEET_ID")
+        sa_key = os.environ.get("GCP_SA_KEY")
+        if not gsheet_id or not sa_key:
+            print("--gsheet requires GSHEET_ID and GCP_SA_KEY environment variables")
+            return 1
+        creds = json.loads(sa_key)
+        wb = Workbook(gsheet_id=gsheet_id, gsheet_creds=creds)
+        build(out_path=args.out, wb=wb)
+    else:
+        wb_path = Path(args.workbook)
+        if not wb_path.exists():
+            print(f"Workbook not found: {wb_path}")
+            return 1
+        build(wb_path, args.out)
     return 0
 
 

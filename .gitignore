@@ -3,6 +3,7 @@
 *.xlsx
 *.xlsm
 .streamlit/secrets.toml
+Google Service Account/
 
 # --- generator's default output (we commit dashboard_snapshot.html instead) ---
 dse_live_dashboard.html

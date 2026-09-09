@@ -1,0 +1,42 @@
+name: Refresh Dashboard
+
+on:
+  schedule:
+    # 4:30 PM BDT (UTC+6) = 10:30 UTC, Sun-Thu (DSE trading days)
+    - cron: "30 10 * * 0-4"
+  workflow_dispatch: # manual trigger for testing
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install openpyxl numpy gspread google-auth
+
+      - name: Generate dashboard snapshot
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GSHEET_ID: ${{ secrets.GSHEET_ID }}
+        run: python dse_live_dashboard.py --gsheet --out dashboard_snapshot.html
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dashboard_snapshot.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto-refresh: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          else
+            echo "No changes to commit"
+          fi
