@@ -14,13 +14,13 @@ sortable/searchable tables, sparklines, gain/loss flashes and a sector heatmap.
 
 This repo shows a **static snapshot**, not a real-time feed.
 
-The underlying pipeline reads a local Excel workbook (`DSE MARKET UPDATE.xlsb`)
+The underlying pipeline reads a local Excel workbook (`DSE MARKET UPDATE.xlsx`)
 and, for true intraday updates, drives Excel via `pywin32` COM automation on
 Windows. **Streamlit Community Cloud runs Linux with no Excel and no access to
 that workbook**, so it can't scrape. Instead:
 
 1. You generate a self-contained `dashboard_snapshot.html` **locally** (it only
-   needs `pyxlsb` + `numpy` — no Excel required, it reads the `.xlsb` directly).
+   needs `openpyxl` + `numpy` — no Excel required, it reads the `.xlsx` directly).
 2. You commit + push that snapshot.
 3. `streamlit_app.py` on Cloud simply displays it.
 
@@ -33,7 +33,7 @@ On a machine that has the workbook:
 
 ```bash
 python dse_live_dashboard.py \
-    --workbook "PATH/TO/DSE MARKET UPDATE.xlsb" \
+    --workbook "PATH/TO/DSE MARKET UPDATE.xlsx" \
     --out dashboard_snapshot.html
 git commit -am "Refresh snapshot" && git push
 ```
@@ -61,7 +61,7 @@ streamlit run streamlit_app.py
 |---|---|
 | `streamlit_app.py` | Cloud entry point — displays the committed snapshot |
 | `dashboard_snapshot.html` | The generated snapshot (the data Cloud shows) |
-| `dse_live_dashboard.py` | Snapshot generator — reads the `.xlsb`, fills the template |
+| `dse_live_dashboard.py` | Snapshot generator — reads the `.xlsx`, fills the template |
 | `dse_dashboard_template.html` | HTML/CSS/JS shell (tabs, tables, charts, heatmap) |
 | `dse_data.py` | Reads the workbook; finds every table at runtime |
 | `dse_analytics.py` | All derived analytics (MAs, MACD, RSI, S/R, breadth, sectors…) |

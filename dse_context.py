@@ -10,7 +10,7 @@ doesn't. Nothing here recomputes an analytic dse_analytics.py doesn't already
 produce; this module only assembles Workbook + dse_analytics output into one
 dict, same as before.
 
-Dependencies: pyxlsb, numpy (via dse_data / dse_analytics only).
+Dependencies: openpyxl, numpy (via dse_data / dse_analytics only).
 """
 
 from __future__ import annotations
@@ -22,16 +22,20 @@ from pathlib import Path
 import dse_analytics as A
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-# This module lives in "Daily Market Update_PPTX_Helper Code", one level
-# below "Daily Market Update" -- WB_ROOT is that folder's own parent
-# ("Menhaj_Stock Market Files_Code"), where the workbook and the news
-# briefings actually sit, two levels up from here.
-WB_ROOT = SCRIPT_DIR.parent.parent
-DEFAULT_WB = WB_ROOT / "DSE MARKET UPDATE.xlsb"
+# This is the public repo's own flat copy: it lives directly in
+# "DSE-Market-Update-Live", a sibling of "Menhaj_Stock Market Files_Code"
+# under "STOCK MARKET". The workbook and the news briefings sit inside that
+# sibling, so WB_ROOT is SCRIPT_DIR's parent ("STOCK MARKET") plus that
+# subfolder -- NOT SCRIPT_DIR.parent.parent, which would land on "My Drive",
+# outside "STOCK MARKET" entirely. (In practice every call site here passes an
+# explicit --workbook/WORKBOOK that overrides DEFAULT_WB, so this only affects
+# a bare no-argument run -- but it should still point at the real file.)
+WB_ROOT = SCRIPT_DIR.parent / "Menhaj_Stock Market Files_Code"
+DEFAULT_WB = WB_ROOT / "DSE MARKET UPDATE.xlsx"
 MACRO_JSON = SCRIPT_DIR / "macro_data.json"
 NEWS_DIR = WB_ROOT / "DSE DAILY NEWS_Update"
 
-WB_SRC = "Source: DSE MARKET UPDATE.xlsb"
+WB_SRC = "Source: DSE MARKET UPDATE.xlsx"
 NA = "Not Available"
 
 

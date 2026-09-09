@@ -1,6 +1,6 @@
 {
   "_readme": [
-    "Slide 10 macro inputs. NONE of this is in DSE MARKET UPDATE.xlsb -- it is",
+    "Slide 10 macro inputs. NONE of this is in DSE MARKET UPDATE.xlsx -- it is",
     "sourced externally and is labelled as such on the slide. Leave a value as",
     "null and the deck prints 'Not Available' rather than estimating it.",
     "Refresh 'retrieved' whenever you update the numbers; the slide warns once",

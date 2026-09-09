@@ -1,14 +1,14 @@
 r"""
 DSE MARKET UPDATE -- data layer.
 
-Reads "DSE MARKET UPDATE.xlsb" and exposes every table the day-end report
+Reads "DSE MARKET UPDATE.xlsx" and exposes every table the day-end report
 needs.  Nothing about the workbook's geometry is hardcoded: the DSE sheet's
 side-by-side tables are found by scanning for their banner text and walking
 each banner's contiguous header block, and Historical Data's date columns
 and section blocks are discovered the same way.  Column letters can move as
 the file grows without breaking this module.
 
-Dependencies: pyxlsb, numpy.
+Dependencies: openpyxl, numpy.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
-import pyxlsb
+import openpyxl
 
 EXCEL_EPOCH = date(1899, 12, 30)
 
@@ -117,17 +117,33 @@ class Sheet:
 def read_workbook(path):
     """{sheet name: Sheet}."""
     sheets = {}
-    with pyxlsb.open_workbook(str(path)) as wb:
-        for name in wb.sheets:
+    wb = openpyxl.load_workbook(str(path), data_only=True, read_only=True)
+    try:
+        for name in wb.sheetnames:
+            ws = wb[name]
             cells, nrows, ncols = {}, 0, 0
-            with wb.get_sheet(name) as sh:
-                for row in sh.rows():
-                    for cell in row:
-                        if cell.v is not None and cell.v != "":
-                            cells[(cell.r, cell.c)] = cell.v
-                            nrows = max(nrows, cell.r + 1)
-                            ncols = max(ncols, cell.c + 1)
+            for row in ws.iter_rows():
+                for cell in row:
+                    v = cell.value
+                    if v is not None and v != "":
+                        # openpyxl is 1-based; pyxlsb (which this module was
+                        # written against) is 0-based, and every downstream
+                        # consumer -- Sheet.get, find_header_row, Historical's
+                        # date-row scan -- assumes 0-based. Subtract 1 to keep
+                        # that contract unchanged.
+                        r = cell.row - 1
+                        c = cell.column - 1
+                        cells[(r, c)] = v
+                        # nrows/ncols stay max-seen+1 (as with pyxlsb) rather
+                        # than trusting ws.max_row/max_column, which read_only
+                        # mode can report inaccurately.
+                        if r + 1 > nrows:
+                            nrows = r + 1
+                        if c + 1 > ncols:
+                            ncols = c + 1
             sheets[name] = Sheet(name, cells, nrows, ncols)
+    finally:
+        wb.close()
     return sheets
 
 

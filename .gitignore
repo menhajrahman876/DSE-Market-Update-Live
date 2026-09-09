@@ -31,3 +31,4 @@ Disable Auto-Publish.bat
 .last_synced_mtime
 .watch_lock
 auto_publish.log
+run_watcher_hidden.vbs

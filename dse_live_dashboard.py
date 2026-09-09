@@ -22,7 +22,7 @@ no path juggling. (They are copies of the modules maintained in the private
 pipeline; regenerate the snapshot there or here -- the analytics are
 identical.)
 
-Dependencies: pyxlsb, numpy.
+Dependencies: openpyxl, numpy.
 """
 
 from __future__ import annotations
@@ -359,7 +359,7 @@ def build_provenance(ctx):
     return [
         {"section": "Overview, Trend, Summary & Breadth, Movers, Sectors, "
                     "Technicals, Extremes, Leaderboards, Blocks, Global",
-         "source": "DSE MARKET UPDATE.xlsb", "origin": "Workbook"},
+         "source": "DSE MARKET UPDATE.xlsx", "origin": "Workbook"},
         {"section": "Macro -- yield curve, inflation",
          "source": yc_source, "origin": "External"},
         {"section": "Macro -- listed bond prices",

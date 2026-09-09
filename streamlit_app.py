@@ -12,7 +12,7 @@ To refresh what Cloud shows, regenerate the snapshot on a machine that has the
 workbook and push it:
 
     python dse_live_dashboard.py \
-        --workbook "PATH/TO/DSE MARKET UPDATE.xlsb" \
+        --workbook "PATH/TO/DSE MARKET UPDATE.xlsx" \
         --out dashboard_snapshot.html
     git commit -am "Refresh snapshot" && git push
 
@@ -59,7 +59,7 @@ with top_r:
 if not SNAPSHOT.exists():
     st.error(
         "No dashboard_snapshot.html found in the repository. Generate it locally "
-        "with `python dse_live_dashboard.py --workbook \"<path to .xlsb>\" "
+        "with `python dse_live_dashboard.py --workbook \"<path to .xlsx>\" "
         "--out dashboard_snapshot.html` and commit it."
     )
     st.stop()

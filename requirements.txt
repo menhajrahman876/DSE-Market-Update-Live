@@ -1,7 +1,7 @@
 # Streamlit Community Cloud installs these. The Cloud app (streamlit_app.py)
-# only needs streamlit to display the committed snapshot; pyxlsb + numpy are
+# only needs streamlit to display the committed snapshot; openpyxl + numpy are
 # here so a fresh clone can also regenerate the snapshot locally with
 # `python dse_live_dashboard.py`.
 streamlit>=1.49
-pyxlsb>=1.0.10
+openpyxl>=3.1
 numpy>=1.24
