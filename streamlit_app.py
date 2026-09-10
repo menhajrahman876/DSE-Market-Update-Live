@@ -44,23 +44,26 @@ if not SNAPSHOT.exists():
 
 html = SNAPSHOT.read_text(encoding="utf-8")
 
-# Inject auto-height script: the iframe tells Streamlit its real content
-# height so there's no fixed guess and no blank tail.
+# Inject a script that resizes the iframe from inside to match actual content.
 _AUTO_HEIGHT = """\
 <script>
 (function(){
   function rh(){
-    var h=document.documentElement.scrollHeight;
-    window.parent.postMessage({type:'streamlit:setFrameHeight',height:h},'*');
+    var h = document.documentElement.scrollHeight;
+    // Streamlit components.html iframe
+    if(window.frameElement) window.frameElement.style.height = h + 'px';
+    // Also try the Streamlit component message protocol
+    window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*');
   }
-  window.addEventListener('load',rh);
-  window.addEventListener('resize',rh);
-  new MutationObserver(rh).observe(document.body,{childList:true,subtree:true});
-  setTimeout(rh,500);
-  setTimeout(rh,2000);
+  window.addEventListener('load', rh);
+  window.addEventListener('resize', rh);
+  new MutationObserver(rh).observe(document.body, {childList:true, subtree:true});
+  setTimeout(rh, 300);
+  setTimeout(rh, 1000);
+  setTimeout(rh, 3000);
 })();
 </script>
 """
 html = html.replace("</body>", _AUTO_HEIGHT + "</body>")
 
-components.html(html, height=0, scrolling=False)
+components.html(html, height=1800, scrolling=False)
