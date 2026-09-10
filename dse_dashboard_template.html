@@ -538,9 +538,7 @@ function card(title, note){ const c=el('div','card'); c.appendChild(el('h3',null
 --------------------------------------------------------------------- */
 function renderHeader(){
   document.getElementById('hdr-sub').textContent =
-    `As of ${dstr(DATA.meta.as_of)}  ·  ` +
-    `${DATA.meta.n_tickers} tickers  ·  ${DATA.meta.n_sessions} sessions ` +
-    `(${dstr(DATA.meta.hist_span_from)} → ${dstr(DATA.meta.hist_span_to)})`;
+    `As of ${dstr(DATA.meta.as_of)}`;
 
 
   const chips = document.getElementById('hdr-chips');
