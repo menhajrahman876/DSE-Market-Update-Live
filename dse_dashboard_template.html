@@ -242,10 +242,7 @@ footer.foot{text-align:center;font-size:10px;color:var(--muted);padding:18px 0 6
         <div class="sub" id="hdr-sub"></div>
       </div>
     </div>
-    <div class="hdr-status">
-      <span class="live-dot" id="hdr-live-dot" aria-hidden="true"></span>
-      <span class="snapshot-note" id="hdr-snapshot"></span>
-    </div>
+    <div class="hdr-status" id="hdr-status"></div>
   </div>
   <div class="idx-chips" id="hdr-chips"></div>
 </div></header>
@@ -541,16 +538,10 @@ function card(title, note){ const c=el('div','card'); c.appendChild(el('h3',null
 --------------------------------------------------------------------- */
 function renderHeader(){
   document.getElementById('hdr-sub').textContent =
-    `As of ${dstr(DATA.meta.as_of)}  ·  Workbook refreshed ${DATA.meta.wb_stamp||'n/a'}  ·  ` +
+    `As of ${dstr(DATA.meta.as_of)}  ·  ` +
     `${DATA.meta.n_tickers} tickers  ·  ${DATA.meta.n_sessions} sessions ` +
     `(${dstr(DATA.meta.hist_span_from)} → ${dstr(DATA.meta.hist_span_to)})`;
-  document.getElementById('hdr-snapshot').textContent =
-    `Snapshot generated ${DATA.meta.generated_at.replace('T',' ')} — refreshed periodically, not real-time.`;
 
-  // This build only ever shows a periodic snapshot (no live data source is
-  // reachable from where it's hosted), so the status dot stays amber/static
-  // -- it's just a visual anchor for the label, not a live/dead toggle.
-  document.getElementById('hdr-live-dot').classList.remove('live');
 
   const chips = document.getElementById('hdr-chips');
   const k = DATA.kpi, t = DATA.trend;
