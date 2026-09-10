@@ -3,7 +3,6 @@
 *.xlsx
 *.xlsm
 .streamlit/secrets.toml
-Google Service Account/
 
 # --- generator's default output (we commit dashboard_snapshot.html instead) ---
 dse_live_dashboard.html
@@ -23,15 +22,5 @@ desktop.ini
 *.swp
 ~$*
 
-# --- maintainer-only local tooling: references this machine's absolute
-# paths and drives the push itself, so it stays out of the public repo ---
-Refresh Snapshot and Push.bat
-watch_and_publish.py
-Enable Auto-Publish.ps1
-Disable Auto-Publish.bat
-.last_synced_mtime
-.watch_lock
-auto_publish.log
-run_watcher_hidden.vbs
-sync_to_cloud.py
-sync_to_cloud.log
+# --- local-only tooling (machine-specific scripts, secrets, logs) ---
+local/
