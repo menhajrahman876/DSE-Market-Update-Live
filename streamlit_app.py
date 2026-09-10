@@ -45,15 +45,14 @@ if not SNAPSHOT.exists():
 html = SNAPSHOT.read_text(encoding="utf-8")
 
 # Inject a script that resizes the iframe from inside to match actual content.
+# Must use body.scrollHeight (real content) not documentElement.scrollHeight
+# (reflects the iframe's own height, creating a feedback loop).
 _AUTO_HEIGHT = """\
 <script>
 (function(){
   function rh(){
-    var h = document.documentElement.scrollHeight;
-    // Streamlit components.html iframe
+    var h = document.body.scrollHeight;
     if(window.frameElement) window.frameElement.style.height = h + 'px';
-    // Also try the Streamlit component message protocol
-    window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*');
   }
   window.addEventListener('load', rh);
   window.addEventListener('resize', rh);
@@ -66,4 +65,4 @@ _AUTO_HEIGHT = """\
 """
 html = html.replace("</body>", _AUTO_HEIGHT + "</body>")
 
-components.html(html, height=1800, scrolling=False)
+components.html(html, height=1400, scrolling=False)
