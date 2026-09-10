@@ -33,3 +33,5 @@ Disable Auto-Publish.bat
 .watch_lock
 auto_publish.log
 run_watcher_hidden.vbs
+sync_to_cloud.py
+sync_to_cloud.log
