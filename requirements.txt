@@ -1,7 +1,7 @@
 # Streamlit Community Cloud installs these.  The Cloud app (streamlit_app.py)
 # only needs streamlit to display the committed snapshot; the rest are for
 # regenerating the snapshot locally or via GitHub Actions.
-streamlit>=1.49
+streamlit>=1.56
 openpyxl>=3.1
 numpy>=1.24
 gspread>=6.0

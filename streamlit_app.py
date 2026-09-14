@@ -13,7 +13,6 @@ commits the updated HTML.  Cloud redeploys automatically on push.
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 SNAPSHOT = Path(__file__).parent / "dashboard_snapshot.html"
 
@@ -42,28 +41,4 @@ if not SNAPSHOT.exists():
     )
     st.stop()
 
-html = SNAPSHOT.read_text(encoding="utf-8")
-
-# Inject a script that resizes the iframe from inside to match actual content.
-# Must use body.scrollHeight (real content) not documentElement.scrollHeight
-# (reflects the iframe's own height, creating a feedback loop).
-_AUTO_HEIGHT = """\
-<script>
-(function(){
-  function rh(){
-    var h = document.body.scrollHeight;
-    if(window.frameElement) window.frameElement.style.height = h + 'px';
-  }
-  window.addEventListener('load', rh);
-  window.addEventListener('resize', rh);
-  new MutationObserver(rh).observe(document.body,
-    {childList:true, subtree:true, attributes:true, attributeFilter:['class']});
-  setTimeout(rh, 300);
-  setTimeout(rh, 1000);
-  setTimeout(rh, 3000);
-})();
-</script>
-"""
-html = html.replace("</body>", _AUTO_HEIGHT + "</body>")
-
-components.html(html, height=6000, scrolling=True)
+st.iframe(SNAPSHOT, height="content")
