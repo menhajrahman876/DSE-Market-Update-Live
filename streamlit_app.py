@@ -56,7 +56,8 @@ _AUTO_HEIGHT = """\
   }
   window.addEventListener('load', rh);
   window.addEventListener('resize', rh);
-  new MutationObserver(rh).observe(document.body, {childList:true, subtree:true});
+  new MutationObserver(rh).observe(document.body,
+    {childList:true, subtree:true, attributes:true, attributeFilter:['class']});
   setTimeout(rh, 300);
   setTimeout(rh, 1000);
   setTimeout(rh, 3000);
@@ -65,4 +66,4 @@ _AUTO_HEIGHT = """\
 """
 html = html.replace("</body>", _AUTO_HEIGHT + "</body>")
 
-components.html(html, height=1400, scrolling=False)
+components.html(html, height=6000, scrolling=True)

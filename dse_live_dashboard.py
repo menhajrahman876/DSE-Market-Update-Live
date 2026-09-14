@@ -179,75 +179,6 @@ def build_universe(wb):
     return rows
 
 
-def build_technicals(ctx):
-    t, sr = ctx["tech"], ctx["sr"]
-    p = sr["params"]
-
-    supports = [{"level": l["level"], "touches": l["touches"],
-                 "vol_confirmation": l["vol_confirmation"],
-                 "distance_pct": l["distance_pct"],
-                 "last_touch_date": l["last_touch_date"]}
-                for l in sr["supports"]]
-    resistances = [{"level": l["level"], "touches": l["touches"],
-                    "vol_confirmation": l["vol_confirmation"],
-                    "distance_pct": l["distance_pct"],
-                    "last_touch_date": l["last_touch_date"]}
-                   for l in sr["resistances"]]
-
-    # same "Reading" synthesis as slide_technicals() in dse_daily_market_update.py
-    nearest_sup = sr["supports"][0] if sr["supports"] else None
-    nearest_res = sr["resistances"][-1] if sr["resistances"] else None
-    bits = []
-    if all(v == "below" for v in t["trend"].values()):
-        bits.append(
-            f"DSEX closed at {sr['spot']:,.2f}, below all three moving "
-            f"averages (MA3 {t['ma'][3]:,.2f}, MA9 {t['ma'][9]:,.2f}, MA21 "
-            f"{t['ma'][21]:,.2f}).")
-    else:
-        bits.append(
-            f"DSEX closed at {sr['spot']:,.2f}, "
-            + ", ".join(f"{v} MA({w}) at {t['ma'][w]:,.2f}"
-                        for w, v in sorted(t["trend"].items())) + ".")
-    bits.append(
-        f"MACD at {t['macd']:,.2f} against a signal of {t['macd_signal']:,.2f} "
-        f"leaves the histogram at {t['macd_hist']:,.2f}, a {t['macd_cross']} "
-        f"reading" + (" that flipped today." if t["macd_flip"] else "."))
-    if t["rsi"] is not None:
-        state = ("overbought" if t["rsi"] > 70 else
-                 "oversold" if t["rsi"] < 30 else "neutral")
-        bits.append(f"RSI(14) is {t['rsi']:,.1f} ({state}).")
-    if nearest_res:
-        bits.append(
-            f"The nearest resistance is {nearest_res['level']:,.2f} "
-            f"({nearest_res['distance_pct']:+.2f}%, {nearest_res['touches']} touches)")
-    if nearest_sup:
-        bits.append(
-            f"and the nearest support {nearest_sup['level']:,.2f} "
-            f"({nearest_sup['distance_pct']:+.2f}%, {nearest_sup['touches']} touches).")
-
-    series = t["series"]
-    return {
-        "spot": t["spot"], "ma": {str(w): v for w, v in t["ma"].items()},
-        "trend": {str(w): v for w, v in t["trend"].items()},
-        "rsi": t["rsi"], "macd": t["macd"], "macd_signal": t["macd_signal"],
-        "macd_hist": t["macd_hist"], "macd_cross": t["macd_cross"],
-        "macd_flip": bool(t["macd_flip"]),
-        "series": {
-            "dates": series["dates"], "close": series["close"],
-            "ma3": list(series["ma"][3]), "ma9": list(series["ma"][9]),
-            "ma21": list(series["ma"][21]), "macd": list(series["macd"]),
-            "signal": list(series["signal"]), "hist": list(series["hist"]),
-        },
-        "supports": supports, "resistances": resistances,
-        "params": {"swing_window": p["swing_window"],
-                   "tolerance_pct": p["tolerance_pct"],
-                   "min_touches": p["min_touches"],
-                   "sample_days": p["sample_days"],
-                   "from": p["from"], "to": p["to"]},
-        "reading": " ".join(bits),
-    }
-
-
 def build_leaderboards(wb):
     rows_all = wb.all_data
     return {
@@ -277,12 +208,26 @@ def build_blocks(ctx):
     tot_q = sum(b["qty"] or 0 for b in blocks)
     tot_t = sum(b["trades"] or 0 for b in blocks)
     day_turnover = ctx["today"]["value"]
+    hist = ctx["wb"].hist
+    all_dates = hist.dates
+    last15 = all_dates[-15:] if len(all_dates) >= 15 else all_dates
+    last15_set = set(last15)
+    block_totals = {}
+    for name in hist.names("Block Value"):
+        dates, vals = hist.series(name, "Block Value")
+        total = sum(v for d, v in zip(dates, vals) if d in last15_set and v and v > 0)
+        if total > 0:
+            block_totals[name] = total
+    top12_hist = sorted(block_totals.items(), key=lambda x: x[1], reverse=True)[:12]
+
     return {
         "rows": blocks,
         "totals": {
             "trades": tot_t, "qty": tot_q, "value": tot_v,
             "pct_of_turnover": (tot_v / day_turnover * 100.0) if day_turnover else None,
         },
+        "top12_15d": [{"code": t, "value": v} for t, v in top12_hist],
+        "top12_15d_span": [last15[0], last15[-1]] if last15 else [],
     }
 
 
@@ -438,7 +383,6 @@ def build_payload(wb, ctx):
              "change_pp": v["change_pp"]}
             for name, v in A.turnover_weight_change(wb.hist).items()
         ],
-        "technicals": build_technicals(ctx),
         "hi_list": ctx["hi_list"], "lo_list": ctx["lo_list"],
         "near_hi": near_hi, "near_lo": near_lo,
         "leaderboards": build_leaderboards(wb),

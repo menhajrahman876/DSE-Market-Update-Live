@@ -255,7 +255,7 @@ footer.foot{text-align:center;font-size:10px;color:var(--muted);padding:18px 0 6
   <div class="tabpanel" id="tab-summary" data-tab="summary"></div>
   <div class="tabpanel" id="tab-movers" data-tab="movers"></div>
   <div class="tabpanel" id="tab-sectors" data-tab="sectors"></div>
-  <div class="tabpanel" id="tab-technicals" data-tab="technicals"></div>
+
   <div class="tabpanel" id="tab-extremes" data-tab="extremes"></div>
   <div class="tabpanel" id="tab-leaderboards" data-tab="leaderboards"></div>
   <div class="tabpanel" id="tab-blocks" data-tab="blocks"></div>
@@ -579,7 +579,7 @@ function renderHeader(){
 --------------------------------------------------------------------- */
 const TABS = [
   ['overview','Overview'], ['trend','Trend'], ['summary','Summary & Breadth'],
-  ['movers','Top Movers'], ['sectors','Sectors'], ['technicals','Technicals'],
+  ['movers','Top Movers'], ['sectors','Sectors'],
   ['extremes','Extremes'], ['leaderboards','Leaderboards'], ['blocks','Blocks'],
   ['macro','Treasury & Macro'], ['global','Global Markets'], ['calendar','Calendar'],
 ];
@@ -591,6 +591,7 @@ function activateTab(name){
   document.querySelectorAll('.tabpanel').forEach(p=>p.classList.toggle('active', p.dataset.tab===name));
   document.querySelectorAll('#tabnav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   if(!initialized[name]){ initializers[name](); initialized[name]=true; }
+  setTimeout(()=>window.dispatchEvent(new Event('resize')), 80);
 }
 
 function renderTabNav(){
@@ -1168,112 +1169,6 @@ initializers.sectors = function(){
   root.appendChild(cRot);
 };
 
-/* ---------------------------------------------------------------------
-   TECHNICALS tab
---------------------------------------------------------------------- */
-initializers.technicals = function(){
-  const root = document.getElementById('tab-technicals');
-  const t = DATA.technicals;
-  const LOOKBACKS = [['90','90D'],['180','180D'],['365','1Y'],['0','Max']];
-  let lookback = 180;
-
-  const cChart = card(`DSEX with MA(3)/MA(9)/MA(21) and support/resistance`,
-    `Computed from Historical Data's DSEX series (${t.params.sample_days} sessions, ${dstr(t.params.from)} to ${dstr(t.params.to)}).`);
-  const tags = el('div','tag-row');
-  LOOKBACKS.forEach(([n,label])=>{
-    const btn = el('button',null,label); if(+n===lookback) btn.classList.add('active');
-    btn.addEventListener('click',()=>{ lookback=+n; tags.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active'); redraw(); });
-    tags.appendChild(btn);
-  });
-  cChart.appendChild(tags);
-  const cv = document.createElement('canvas'); cv.style.maxHeight='380px'; cChart.appendChild(cv);
-  root.appendChild(cChart);
-
-  const cMacd = card('MACD (12, 26, 9)');
-  const cvMacd = document.createElement('canvas'); cvMacd.style.maxHeight='210px'; cMacd.appendChild(cvMacd);
-  root.appendChild(cMacd);
-
-  let chartMain=null, chartMacd=null;
-  function slice(arr,n){ return n>0 ? arr.slice(-n) : arr; }
-  function redraw(){
-    const s = t.series;
-    const dates = slice(s.dates, lookback).map(dshort);
-    const close = slice(s.close, lookback);
-    const ds = [
-      {label:'DSEX', data:close, color:TH.accent, width:2.1, fill:true},
-      {label:'MA(3)', data:slice(s.ma3,lookback), color:'#f59e0b', width:1.2},
-      {label:'MA(9)', data:slice(s.ma9,lookback), color:'#a78bfa', width:1.2},
-      {label:'MA(21)', data:slice(s.ma21,lookback), color:'#2dd4bf', width:1.2},
-    ];
-    t.resistances.forEach(lvl=>{
-      ds.push({label:`R ${fnum(lvl.level,0)}`, data:dates.map(()=>lvl.level), color:TH.down, width:1, dash:[5,4]});
-    });
-    t.supports.forEach(lvl=>{
-      ds.push({label:`S ${fnum(lvl.level,0)}`, data:dates.map(()=>lvl.level), color:TH.up, width:1, dash:[5,4]});
-    });
-    if(chartMain) chartMain.destroy();
-    chartMain = lineChart(cv, dates, ds, {plugins:{legend:{position:'top',align:'end',
-      labels:{usePointStyle:true,pointStyle:'line',boxWidth:14,boxHeight:2,padding:9,font:{size:9.5}}}}});
-
-    if(chartMacd) chartMacd.destroy();
-    const hist = slice(s.hist,lookback);
-    chartMacd = new Chart(cvMacd.getContext('2d'), {
-      data:{ labels:dates, datasets:[
-        {type:'bar', label:'Histogram', data:hist, borderSkipped:false, borderRadius:1,
-          backgroundColor:hist.map(v=>v>=0?hexA(TH.up,.55):hexA(TH.down,.55))},
-        {type:'line', label:'MACD', data:slice(s.macd,lookback), borderColor:TH.accent, pointRadius:0, borderWidth:1.6, tension:.15},
-        {type:'line', label:'Signal', data:slice(s.signal,lookback), borderColor:'#f59e0b', pointRadius:0, borderWidth:1.6, tension:.15},
-      ]},
-      options:{ responsive:true, maintainAspectRatio:false, animation:false, interaction:{mode:'index',intersect:false},
-        plugins:{legend:{position:'top',align:'end',labels:{usePointStyle:true,boxWidth:9,padding:10,font:{size:10}}}},
-        scales:{x:{grid:{display:false},border:{color:TH.line},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,font:{size:9.5}}},
-          y:{grid:{color:hexA(TH.line,.5),drawTicks:false},border:{display:false},ticks:{font:{size:9.5}}}} }
-    });
-    CHARTS.push(chartMacd);
-  }
-  redraw();
-
-  const g2 = el('div','grid2');
-  const cTrend = card('Trend position');
-  const tTrend = document.createElement('div'); cTrend.appendChild(tTrend);
-  const trendRows = ['3','9','21'].map(w=>{
-    const val = t.ma[w]; const gap = val ? (t.spot/val-1)*100 : null;
-    return {ma:`MA(${w})`, level:val, is: t.trend[w] ? t.trend[w][0].toUpperCase()+t.trend[w].slice(1) : '-', gap};
-  });
-  trendRows.push({ma:'RSI(14)', level:t.rsi, is: t.rsi>70?'Overbought':(t.rsi<30?'Oversold':'Neutral'), gap:null});
-  buildTable(tTrend, [{key:'ma',label:'Indicator'},{key:'level',label:'Level',align:'right',format:'num2'},
-    {key:'is',label:'Index is',align:'center'},{key:'gap',label:'Gap',align:'right',format:'pct2',color:true}], trendRows,
-    {search:false, rowTintBy:'gap'});
-  g2.appendChild(cTrend);
-
-  const cMacdT = card('MACD summary');
-  const tMacdT = document.createElement('div'); cMacdT.appendChild(tMacdT);
-  buildTable(tMacdT, [{key:'k',label:'MACD'},{key:'v',label:'Value',align:'right'}], [
-    {k:'MACD line', v:fnum(t.macd,3)}, {k:'Signal line', v:fnum(t.macd_signal,3)},
-    {k:'Histogram', v:fnum(t.macd_hist,3)},
-    {k:'Reading', v: t.macd_cross[0].toUpperCase()+t.macd_cross.slice(1)+(t.macd_flip?' (fresh cross)':'')},
-  ], {search:false});
-  g2.appendChild(cMacdT);
-  root.appendChild(g2);
-
-  const cSR = card('Support & resistance', `Swing pivots over a ±${t.params.swing_window}-bar window, clustered within ${t.params.tolerance_pct}%, minimum ${t.params.min_touches} touches; level price is the turnover-weighted mean of its touches.`);
-  const tSR = document.createElement('div'); cSR.appendChild(tSR);
-  const srRows = [
-    ...t.resistances.map(l=>({type:'Resistance', ...l})).reverse(),
-    {type:'DSEX close', level:t.spot, touches:null, vol_confirmation:null, distance_pct:null, last_touch_date:DATA.meta.as_of},
-    ...t.supports.map(l=>({type:'Support', ...l})),
-  ];
-  buildTable(tSR, [{key:'type',label:'Level type'},{key:'level',label:'Index level',align:'right',format:'num2'},
-    {key:'distance_pct',label:'Distance',align:'right',format:'pct2',color:true},{key:'touches',label:'Touches',align:'right',format:'int'},
-    {key:'vol_confirmation',label:'Vol conf',align:'right',format:'x'},{key:'last_touch_date',label:'Last touch',align:'right',format:'date'},
-  ], srRows, {search:false, rowTintBy:'distance_pct'});
-  root.appendChild(cSR);
-
-  const cRead = card('Reading');
-  cRead.appendChild(el('div','reading', t.reading));
-  root.appendChild(cRead);
-};
 
 /* ---------------------------------------------------------------------
    EXTREMES tab
@@ -1404,11 +1299,21 @@ initializers.blocks = function(){
   root.appendChild(cTbl);
 
   if(b.rows.length){
-    const cChart = card('Block value concentration', 'top 12 instruments by block value (BDT mn)');
+    const cChart = card('Block value concentration — today', 'top 12 instruments by block value (BDT mn)');
     const cv = document.createElement('canvas'); cChart.appendChild(cv);
     root.appendChild(cChart);
     const top = b.rows.slice(0,12);
     barChart(cv, top.map(r=>r.code), top.map(r=>r.value), {color:hexA(TH.accent,.75), tooltipFmt:v=>fnum(v,2)+' mn'});
+  }
+
+  if(b.top12_15d && b.top12_15d.length){
+    const span = b.top12_15d_span;
+    const cH = card('Block value concentration — last 15 sessions',
+      `Cumulative block value (BDT mn) · ${span.length===2 ? dstr(span[0])+' to '+dstr(span[1]) : ''}`);
+    const cvH = document.createElement('canvas'); cH.appendChild(cvH);
+    root.appendChild(cH);
+    barChart(cvH, b.top12_15d.map(r=>r.code), b.top12_15d.map(r=>r.value),
+      {color:hexA('#7c3aed',.75), tooltipFmt:v=>fnum(v,2)+' mn'});
   }
 };
 
