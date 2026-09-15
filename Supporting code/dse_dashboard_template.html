@@ -570,9 +570,7 @@ function renderHeader(){
     chips.appendChild(c);
   });
 
-  document.getElementById('foot').textContent =
-    `Reused analytics from dse_data.py / dse_analytics.py — same numbers as ` +
-    `"DSE Market Update ${DATA.meta.as_of}.pptx". Source workbook: ${DATA.meta.workbook_file}.`;
+  document.getElementById('foot').textContent = '';
 }
 
 /* ---------------------------------------------------------------------
@@ -1451,32 +1449,7 @@ initializers.calendar = function(){
   g2.appendChild(cRec); g2.appendChild(cAgm);
   root.appendChild(g2);
 
-  const cTalk = card('Talk of the Market');
-  if(cal.talk_of_market){
-    cTalk.appendChild(el('div','commentary', cal.talk_of_market));
-    cTalk.appendChild(el('div','note','Source: macro_data.json / talk_of_the_market (external).'));
-  } else if(cal.talk_hits && cal.talk_hits.length){
-    cTalk.appendChild(el('ul','commentary', cal.talk_hits.map(h=>`<li>${h}</li>`).join('')));
-    cTalk.appendChild(el('div','note', `Auto-drafted from the latest daily-bd-financial-news briefing (${cal.news_file}) — external to the workbook, review before circulating.`));
-  } else {
-    cTalk.appendChild(el('div','empty-note',
-      '[ To be filled in ]  No daily-bd-financial-news briefing was found, and macro_data.json has no talk_of_the_market entry. ' +
-      'Regulatory circulars and policy news are not derivable from the workbook, so this section is left blank rather than invented.'));
-  }
-  root.appendChild(cTalk);
-
-  const cProv = card('Data provenance for this dashboard');
-  const tProv = document.createElement('div'); cProv.appendChild(tProv);
-  buildTable(tProv, [{key:'section',label:'Section'},{key:'source',label:'Source'},
-    {key:'origin',label:'Origin',align:'center'}],
-    DATA.provenance, {search:false});
-  // origin pill needs raw HTML -- patch after render since buildTable sets textContent
-  Array.from(tProv.querySelectorAll('tbody tr')).forEach((tr,i)=>{
-    const cell = tr.children[2];
-    const origin = DATA.provenance[i].origin;
-    cell.innerHTML = `<span class="pill ${origin.toLowerCase()}">${origin}</span>`;
-  });
-  root.appendChild(cProv);
+  // Talk of the Market and Data provenance cards hidden for now
 };
 
 /* ---------------------------------------------------------------------
