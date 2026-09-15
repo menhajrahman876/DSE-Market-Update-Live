@@ -439,7 +439,9 @@ class Workbook:
         return out
 
     def as_of(self):
+        if self.hist.dates:
+            return self.hist.dates[-1]
         rm = self.recent_market()
         if rm:
             return rm[0]["date"]
-        return self.hist.dates[-1] if self.hist.dates else date.today()
+        return date.today()

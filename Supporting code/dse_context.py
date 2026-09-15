@@ -77,7 +77,7 @@ def build_context(wb):
     ctx["recent"] = rm
     today, prev = rm[0], (rm[1] if len(rm) > 1 else rm[0])
     ctx["today"], ctx["prev"] = today, prev
-    ctx["as_of"] = today["date"]
+    ctx["as_of"] = wb.as_of()
 
     ms = {(m["label"], m["category"]): m["value"] for m in wb.market_summary()}
     ctx["summary_rows"] = wb.market_summary()
