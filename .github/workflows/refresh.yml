@@ -27,7 +27,7 @@ jobs:
         env:
           GCP_SA_KEY: ${{ secrets.DSE_DASHBOARD_KEY }}
           GSHEET_ID: ${{ secrets.GSHEET_ID }}
-        run: python dse_live_dashboard.py --gsheet --out dashboard_snapshot.html
+        run: python "Supporting code/dse_live_dashboard.py" --gsheet --out dashboard_snapshot.html
 
       - name: Commit and push if changed
         run: |

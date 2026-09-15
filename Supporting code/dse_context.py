@@ -22,15 +22,8 @@ from pathlib import Path
 import dse_analytics as A
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-# This is the public repo's own flat copy: it lives directly in
-# "DSE-Market-Update-Live", a sibling of "Menhaj_Stock Market Files_Code"
-# under "STOCK MARKET". The workbook and the news briefings sit inside that
-# sibling, so WB_ROOT is SCRIPT_DIR's parent ("STOCK MARKET") plus that
-# subfolder -- NOT SCRIPT_DIR.parent.parent, which would land on "My Drive",
-# outside "STOCK MARKET" entirely. (In practice every call site here passes an
-# explicit --workbook/WORKBOOK that overrides DEFAULT_WB, so this only affects
-# a bare no-argument run -- but it should still point at the real file.)
-WB_ROOT = SCRIPT_DIR.parent / "Menhaj_Stock Market Files_Code"
+REPO_ROOT = SCRIPT_DIR.parent
+WB_ROOT = REPO_ROOT.parent / "Menhaj_Stock Market Files_Code"
 DEFAULT_WB = WB_ROOT / "DSE MARKET UPDATE.xlsx"
 MACRO_JSON = SCRIPT_DIR / "macro_data.json"
 NEWS_DIR = WB_ROOT / "DSE DAILY NEWS_Update"
