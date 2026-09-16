@@ -570,6 +570,13 @@ function renderHeader(){
     chips.appendChild(c);
   });
 
+  const status = document.getElementById('hdr-status');
+  const dot = el('span','live-dot');
+  const sNote = el('span','snapshot-note',
+    `Snapshot · ${DATA.meta.generated_at ? new Date(DATA.meta.generated_at).toLocaleString() : ''}`);
+  status.appendChild(dot);
+  status.appendChild(sNote);
+
   document.getElementById('foot').textContent = '';
 }
 
@@ -720,20 +727,12 @@ initializers.overview = function(){
   g2.appendChild(cBreadth);
   const cExt = card('New Price Extremes Hit Today');
   const es = DATA.extremes_summary;
-  const extRows = [
-    {window:'52-week', hi:es.hi52, lo:es.lo52},
-    {window:'5-year', hi:es.ext5.covered?es.ext5.hi:null, lo:es.ext5.covered?es.ext5.lo:null, na:!es.ext5.covered},
-    {window:'10-year', hi:es.ext10.covered?es.ext10.hi:null, lo:es.ext10.covered?es.ext10.lo:null, na:!es.ext10.covered},
-  ];
   const extTbl = document.createElement('div'); cExt.appendChild(extTbl);
   buildTable(extTbl, [
     {key:'window',label:'Window'}, {key:'hi',label:'New Highs',align:'right',format:'int'},
     {key:'lo',label:'New Lows',align:'right',format:'int'},
-  ], extRows.map(r=>({...r, hi:r.na?null:r.hi, lo:r.na?null:r.lo})), {search:false});
-  cExt.appendChild(el('div','note',
-    `52-week from ALL DATA's 52-week High/Low fields. 5- and 10-year need price history back to ` +
-    `${parseInt(DATA.meta.as_of.slice(0,4),10)-10}; Historical Data starts ${dstr(es.hist_span_from)}, so uncovered ` +
-    `windows show ${NA} rather than being approximated.`));
+  ], [{window:'52-week', hi:es.hi52, lo:es.lo52}], {search:false});
+  cExt.appendChild(el('div','note', `52-week from ALL DATA's 52-week High/Low fields.`));
   g2.appendChild(cExt);
   root.appendChild(g2);
 
@@ -1180,10 +1179,6 @@ initializers.extremes = function(){
   buildTable(tSumm, [{key:'window',label:'Window'},{key:'hi',label:'New highs',align:'right',format:'int'},
     {key:'lo',label:'New lows',align:'right',format:'int'},{key:'basis',label:'Basis'}], [
     {window:'52-week', hi:es.hi52, lo:es.lo52, basis:'ALL DATA / 52 week High & Low'},
-    {window:'5-year', hi:es.ext5.covered?es.ext5.hi:null, lo:es.ext5.covered?es.ext5.lo:null,
-      basis: es.ext5.covered ? 'Historical Data CP*' : `History starts ${dstr(es.hist_span_from)} — not covered`},
-    {window:'10-year', hi:es.ext10.covered?es.ext10.hi:null, lo:es.ext10.covered?es.ext10.lo:null,
-      basis: es.ext10.covered ? 'Historical Data CP*' : `History starts ${dstr(es.hist_span_from)} — not covered`},
   ], {search:false});
   root.appendChild(cSumm);
 
@@ -1288,10 +1283,15 @@ initializers.blocks = function(){
 
   const cTbl = card(`All ${b.rows.length} block transactions`, 'DSE / Prices in Block Transactions table');
   const tot = b.totals.value || 1;
-  const rows = b.rows.map(r=>({...r, spread: (r.max&&r.min)?((r.max/r.min-1)*100):0, pctOfBlock: r.value/tot*100}));
+  const rows = b.rows.map(r=>({...r,
+    spread: (r.max&&r.min)?((r.max/r.min-1)*100):0,
+    pctOfBlock: r.value/tot*100,
+    vwap: (r.value && r.qty && r.qty > 0) ? (r.value * 1e6 / r.qty) : null,
+  }));
   const t = document.createElement('div'); cTbl.appendChild(t);
   buildTable(t, [{key:'code',label:'Instrument'},{key:'max',label:'Max price',align:'right',format:'num2'},
     {key:'min',label:'Min price',align:'right',format:'num2'},{key:'spread',label:'Spread',align:'right',format:'pct2ns'},
+    {key:'vwap',label:'Wtd Price',align:'right',format:'num2'},
     {key:'trades',label:'Trades',align:'right',format:'int'},{key:'qty',label:'Volume',align:'right',format:'int'},
     {key:'value',label:'Value (mn)',align:'right',format:'num2'},{key:'pctOfBlock',label:'% of block',align:'right',format:'pct2ns'},
   ], rows, {defaultSort:'value'});
@@ -1308,11 +1308,18 @@ initializers.blocks = function(){
   if(b.top12_15d && b.top12_15d.length){
     const span = b.top12_15d_span;
     const cH = card('Block value concentration — last 15 sessions',
-      `Cumulative block value (BDT mn) · ${span.length===2 ? dstr(span[0])+' to '+dstr(span[1]) : ''}`);
+      `Cumulative block value (BDT mn) with volume-weighted avg price · ${span.length===2 ? dstr(span[0])+' to '+dstr(span[1]) : ''}`);
     const cvH = document.createElement('canvas'); cH.appendChild(cvH);
-    root.appendChild(cH);
     barChart(cvH, b.top12_15d.map(r=>r.code), b.top12_15d.map(r=>r.value),
       {color:hexA('#7c3aed',.75), tooltipFmt:v=>fnum(v,2)+' mn'});
+    const t15d = document.createElement('div'); cH.appendChild(t15d);
+    buildTable(t15d, [
+      {key:'code',label:'Instrument'},
+      {key:'value',label:'Cumul. Value (mn)',align:'right',format:'num2'},
+      {key:'weighted_price',label:'Weighted Avg Price',align:'right',format:'num2'},
+    ], b.top12_15d, {search:false, defaultSort:'value'});
+    cH.appendChild(el('div','note','Weighted Avg Price = Σ(block value) ÷ Σ(block value ÷ block avg price) per session — the value-weighted average price at which block trades occurred over the period, derived from Historical Data\'s Block Value and Block Avg. Price sections.'));
+    root.appendChild(cH);
   }
 };
 
@@ -1459,6 +1466,7 @@ renderHeader();
 renderTabNav();
 activateTab('overview');
 savePrev();   // remember this refresh's values so the next one can flash the deltas
+
 </script>
 </body>
 </html>

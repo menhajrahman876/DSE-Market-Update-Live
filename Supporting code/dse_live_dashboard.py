@@ -213,11 +213,24 @@ def build_blocks(ctx):
     last15 = all_dates[-15:] if len(all_dates) >= 15 else all_dates
     last15_set = set(last15)
     block_totals = {}
+    block_vwap = {}
     for name in hist.names("Block Value"):
-        dates, vals = hist.series(name, "Block Value")
-        total = sum(v for d, v in zip(dates, vals) if d in last15_set and v and v > 0)
-        if total > 0:
-            block_totals[name] = total
+        bv_dates, bv_vals = hist.series(name, "Block Value")
+        ba_dates, ba_vals = hist.series(name, "Block Avg. Price")
+        ba_map = dict(zip(ba_dates, ba_vals))
+        total_value = 0.0
+        total_est_qty = 0.0
+        for d, v in zip(bv_dates, bv_vals):
+            if d not in last15_set or not v or v <= 0:
+                continue
+            total_value += v
+            avg_p = ba_map.get(d)
+            if avg_p and avg_p > 0:
+                total_est_qty += v / avg_p
+        if total_value > 0:
+            block_totals[name] = total_value
+            if total_est_qty > 0:
+                block_vwap[name] = total_value / total_est_qty
     top12_hist = sorted(block_totals.items(), key=lambda x: x[1], reverse=True)[:12]
 
     return {
@@ -226,7 +239,9 @@ def build_blocks(ctx):
             "trades": tot_t, "qty": tot_q, "value": tot_v,
             "pct_of_turnover": (tot_v / day_turnover * 100.0) if day_turnover else None,
         },
-        "top12_15d": [{"code": t, "value": v} for t, v in top12_hist],
+        "top12_15d": [{"code": t, "value": v,
+                       "weighted_price": block_vwap.get(t)}
+                      for t, v in top12_hist],
         "top12_15d_span": [last15[0], last15[-1]] if last15 else [],
     }
 
@@ -324,8 +339,6 @@ def build_provenance(ctx):
 def build_payload(wb, ctx):
     today = ctx["today"]
     pe_now = ctx["pe_hist"][-1] if ctx["pe_hist"] else None
-    ext5_hi, ext5_lo, ok5 = ctx["ext5"]
-    ext10_hi, ext10_lo, ok10 = ctx["ext10"]
     near_hi, near_lo = A.near_extremes(wb.all_data, band=3.0, limit=9)
 
     payload = {
@@ -354,8 +367,6 @@ def build_payload(wb, ctx):
                     "traded": ctx["traded"]},
         "extremes_summary": {
             "hi52": ctx["hi52"], "lo52": ctx["lo52"],
-            "ext5": {"hi": ext5_hi, "lo": ext5_lo, "covered": bool(ok5)},
-            "ext10": {"hi": ext10_hi, "lo": ext10_lo, "covered": bool(ok10)},
             "hist_span_from": ctx["hist_span_from"],
         },
         "index_movers": [{"ticker": tk, "pts": pts, "day_pct": chg}

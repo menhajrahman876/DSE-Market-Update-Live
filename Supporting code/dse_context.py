@@ -138,9 +138,6 @@ def build_context(wb):
         "draggers": ctx["draggers"],
     })
 
-    # 52-week / 5-year / 10-year extremes
     ctx["hi52"], ctx["lo52"] = len(ctx["hi_list"]), len(ctx["lo_list"])
-    ctx["ext5"] = A.extreme_counts(hist, 5, ctx["as_of"])
-    ctx["ext10"] = A.extreme_counts(hist, 10, ctx["as_of"])
     ctx["hist_span_from"] = hist.dates[0]
     return ctx
