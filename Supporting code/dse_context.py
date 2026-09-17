@@ -75,9 +75,26 @@ def build_context(wb):
     ctx = {"wb": wb}
     rm = wb.recent_market()
     ctx["recent"] = rm
-    today, prev = rm[0], (rm[1] if len(rm) > 1 else rm[0])
+    ctx["as_of"] = as_of = wb.as_of()
+
+    prev = next((r for r in rm if r["date"] < as_of), rm[1] if len(rm) > 1 else rm[0])
+
+    hs = wb.home_summary()
+    if hs:
+        # DSE HOME SUMMARY (dsebd.org's own homepage card) -- live same-day
+        # DSEX/DSES/DS30/Trade/Volume/Turnover, fresher than Recent Market
+        # Information's own top row, which can still show yesterday's close
+        # hours after market close. Market cap has no live source there, so
+        # it still comes from Recent Market Information's most recent row.
+        today = {
+            "date": as_of,
+            "dsex": hs["dsex"], "dses": hs["dses"], "ds30": hs["ds30"],
+            "trade": hs["trade"], "volume": hs["volume"], "value": hs["value"],
+            "mcap": rm[0]["mcap"],
+        }
+    else:
+        today = rm[0]
     ctx["today"], ctx["prev"] = today, prev
-    ctx["as_of"] = wb.as_of()
 
     ms = {(m["label"], m["category"]): m["value"] for m in wb.market_summary()}
     ctx["summary_rows"] = wb.market_summary()

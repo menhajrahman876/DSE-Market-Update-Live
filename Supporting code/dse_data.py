@@ -234,6 +234,7 @@ DSE_BANNERS = {
     "market_summary": r"Market Summary",
     "block": r"Block Transaction",
     "global": r"GLOBAL MARKETS",
+    "home_summary": r"DSE HOME SUMMARY",
 }
 
 
@@ -437,6 +438,25 @@ class Workbook:
                 "value": num(rec.get("Value")),
             })
         return out
+
+    def home_summary(self):
+        """DSE HOME SUMMARY card (dsebd.org's own homepage) -- same-day-live
+        DSEX/DSES/DS30/Total Trade/Volume/Value, fresher than Recent Market
+        Information's own top row (which can lag a trading day behind).
+        Returns {} if the block isn't in the sheet yet."""
+        rows = self.dse.get("home_summary", [])
+        vals = {txt(r.get("Label")): r.get("Value") for r in rows}
+        if not vals:
+            return {}
+        return {
+            "stamp": txt(vals.get("Last Update")) or None,
+            "dsex": num(vals.get("DSEX Index")),
+            "dses": num(vals.get("DSES Index")),
+            "ds30": num(vals.get("DS30 Index")),
+            "trade": num(vals.get("Total Trade")),
+            "volume": num(vals.get("Total Volume")),
+            "value": num(vals.get("Total Value in Taka (mn)")),
+        }
 
     def as_of(self):
         if self.hist.dates:
