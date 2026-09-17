@@ -769,7 +769,7 @@ initializers.overview = function(){
     {key:'year',label:'1Y',align:'right',format:'pct2',color:true},
     {key:'high',label:'Period high',align:'right',format:'num2'},{key:'low',label:'Period low',align:'right',format:'num2'},
   ], DATA.index_returns, {search:false});
-  cIdx.appendChild(el('div','note', `Period high/low span the stored history (${dstr(DATA.meta.hist_span_from)} onward), not a 52-week window.`));
+  cIdx.appendChild(el('div','note', `Period high/low are each index's max/min over the trailing 365 days (1Y window).`));
   root.appendChild(cIdx);
 };
 
